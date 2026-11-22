@@ -24,9 +24,10 @@ onMounted(async () => {
   // The payment provider may confirm a few seconds after it sends the buyer back.
   for (let attempt = 0; attempt < 8; attempt++) {
     try {
-      const f = await api.get<ApiFrame & { storyUrl: string }>(`/frames/${id.value}`)
+      const f = await api.get<ApiFrame & { storyUrl?: string }>(`/frames/${id.value}`)
       frame.value = fromApi(f)
-      storyUrl.value = f.storyUrl
+      // Older API versions do not send storyUrl.
+      storyUrl.value = f.storyUrl || `${api.base}/frames/${f.id}/story.jpg`
       break
     } catch (err) {
       if (!(err instanceof ApiError && err.status === 404)) break
