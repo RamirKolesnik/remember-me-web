@@ -8,29 +8,33 @@ const route = useRoute()
 const api = useApi()
 const { load } = useWall()
 const draft = useDraft()
-const id = computed(() => Number(route.query.id))
-const paid = computed(() => route.query.status !== 'expired')
 const frame = ref<WallFrame | null>(null)
 const storyUrl = ref('')
 const state = ref<'loading' | 'ok' | 'missing'>('loading')
+const paid = ref(route.query.status !== 'expired')
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 onMounted(async () => {
-  if (!paid.value || !id.value || !api.live) {
+  // Read the address bar itself: on a prerendered page the route can still be
+  // the one from build time (no query) while the page hydrates.
+  const query = new URLSearchParams(window.location.search)
+  const id = Number(query.get('id') ?? route.query.id)
+  paid.value = (query.get('status') ?? route.query.status) !== 'expired'
+  if (!paid.value || !Number.isInteger(id) || id <= 0 || !api.live) {
     state.value = 'missing'
     return
   }
-  // The payment provider may confirm a few seconds after it sends the buyer back.
-  for (let attempt = 0; attempt < 8; attempt++) {
+  // The payment provider may confirm a few seconds after it sends the buyer
+  // back, and a sleeping test server can drop the first requests: keep trying.
+  for (let attempt = 0; attempt < 8 && !frame.value; attempt++) {
     try {
-      const f = await api.get<ApiFrame & { storyUrl?: string }>(`/frames/${id.value}`)
-      frame.value = fromApi(f)
+      const f = await api.get<ApiFrame & { storyUrl?: string }>(`/frames/${id}`)
       // Older API versions do not send storyUrl.
       storyUrl.value = f.storyUrl || `${api.base}/frames/${f.id}/story.jpg`
-      break
+      frame.value = fromApi(f)
     } catch (err) {
-      if (!(err instanceof ApiError && err.status === 404)) break
+      if (!(err instanceof ApiError && err.status === 404)) console.error('Loading the frame failed', err)
       await sleep(2500)
     }
   }
