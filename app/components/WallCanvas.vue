@@ -245,7 +245,11 @@ function startPinch() {
 }
 
 function onPointerDown(e: PointerEvent) {
-  canvas.value!.setPointerCapture(e.pointerId)
+  try {
+    canvas.value!.setPointerCapture(e.pointerId)
+  } catch {
+    // Not a live pointer (e.g. a synthetic event): carry on without capture.
+  }
   const p = localPos(e)
   pointers.set(e.pointerId, p)
   if (pointers.size === 1) {
