@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { basePrice, containsLink, FRAME_SIZES, NAME_MAX, NOTE_MAX, type FrameSize } from '~/shared/wall'
+import { squarePhoto } from '~/composables/useDraft'
+import { ApiError } from '~/composables/useApi'
 
 useHead({ title: 'Immortalize yourself — remember.me' })
 

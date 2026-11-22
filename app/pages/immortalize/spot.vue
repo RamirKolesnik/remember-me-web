@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { basePrice, HEART, isHeart, placementError, priceOf, zoneOfFrame, type FrameSize } from '~/shared/wall'
 import type { Ghost } from '~/components/WallCanvas.vue'
+import { ApiError } from '~/composables/useApi'
 
 useHead({ title: 'Choose your spot — remember.me' })
 
