@@ -13,9 +13,10 @@ const reported = ref<string | null>(null)
 
 onMounted(() => load())
 
-// /?frame=123 opens the wall on that frame.
-watch([status, wall], ([s, w]) => {
-  const id = Number(route.query.frame)
+// /?frame=123 opens the wall on that frame. The query is watched too: on a
+// direct load it only appears after hydration.
+watch([status, wall, () => route.query.frame], ([s, w, q]) => {
+  const id = Number(q)
   if (s !== 'ready' || !w || !id) return
   const f = byId(id)
   if (!f) return

@@ -15,12 +15,25 @@ const paid = ref(route.query.status !== 'expired')
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-onMounted(async () => {
-  // Read the address bar itself: on a prerendered page the route can still be
-  // the one from build time (no query) while the page hydrates.
-  const query = new URLSearchParams(window.location.search)
-  const id = Number(query.get('id') ?? route.query.id)
-  paid.value = (query.get('status') ?? route.query.status) !== 'expired'
+// On a direct load the prerendered page hydrates with the build-time route
+// (no query) and only then moves to the real address, so wait for the id to
+// show up instead of reading it once.
+let started = false
+onMounted(() => {
+  watch(() => route.query.id, (qid) => {
+    if (started || !qid) return
+    started = true
+    openFrame(Number(qid), route.query.status)
+  }, { immediate: true })
+  setTimeout(() => {
+    if (started) return
+    started = true
+    openFrame(NaN, route.query.status)
+  }, 4000)
+})
+
+async function openFrame(id: number, status: unknown) {
+  paid.value = status !== 'expired'
   if (!paid.value || !Number.isInteger(id) || id <= 0 || !api.live) {
     state.value = 'missing'
     return
@@ -44,7 +57,7 @@ onMounted(async () => {
     // Refresh the wall so "See it on the wall" shows the new frame.
     load(true)
   }
-})
+}
 </script>
 
 <template>
