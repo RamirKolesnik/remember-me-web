@@ -41,7 +41,7 @@ const heart = computed(() => !!spot.value && isHeart(spot.value.x, spot.value.y,
 const distance = computed(() => {
   if (!spot.value) return 0
   const cx = spot.value.x + (size.value - 1) / 2, cy = spot.value.y + (size.value - 1) / 2
-  return Math.round(Math.max(Math.abs(cx - HEART.x), Math.abs(cy - HEART.y)))
+  return Math.floor(Math.max(Math.abs(cx - HEART.x), Math.abs(cy - HEART.y)))
 })
 const canReserve = computed(() => price.value !== null && human.value)
 
