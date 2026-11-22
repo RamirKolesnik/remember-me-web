@@ -33,3 +33,17 @@ export function useDraft() {
   }
   return draft
 }
+
+/** Crops an image file to a centered square and returns a JPEG data URL. */
+export async function squarePhoto(file: File, side = 512): Promise<string> {
+  const bitmap = await createImageBitmap(file)
+  const s = Math.min(bitmap.width, bitmap.height)
+  const canvas = document.createElement('canvas')
+  canvas.width = side
+  canvas.height = side
+  const ctx = canvas.getContext('2d')!
+  ctx.imageSmoothingQuality = 'high'
+  ctx.drawImage(bitmap, (bitmap.width - s) / 2, (bitmap.height - s) / 2, s, s, 0, 0, side, side)
+  bitmap.close()
+  return canvas.toDataURL('image/jpeg', 0.86)
+}
