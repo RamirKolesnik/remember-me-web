@@ -42,6 +42,21 @@ let frameRequested = false
 
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v))
 
+// Photos load lazily, only for frames big enough on screen to show them.
+const images = new Map<string, HTMLImageElement | 'error'>()
+function photo(url: string): HTMLImageElement | null {
+  const got = images.get(url)
+  if (got === 'error') return null
+  if (got) return got.complete && got.naturalWidth ? got : null
+  const img = new Image()
+  img.decoding = 'async'
+  img.onload = () => requestDraw()
+  img.onerror = () => images.set(url, 'error')
+  img.src = url
+  images.set(url, img)
+  return null
+}
+
 function toCell(px: number, py: number) {
   return { fx: cx + (px - width / 2) / s, fy: cy + (py - height / 2) / s }
 }
@@ -138,7 +153,14 @@ function draw() {
     } else {
       ctx.fillRect(px, py, Math.max(size, 0.8), Math.max(size, 0.8))
     }
-    if (size >= 28) {
+    const img = f.photoUrl && size >= 8 ? photo(f.photoUrl) : null
+    if (img) {
+      ctx.save()
+      roundRectPath(ctx, px + gap / 2, py + gap / 2, size - gap, size - gap, Math.min(3, size / 8))
+      ctx.clip()
+      ctx.drawImage(img, px, py, size, size)
+      ctx.restore()
+    } else if (size >= 28) {
       ctx.fillStyle = f.ink
       ctx.font = `600 ${Math.round(Math.min(size * 0.36, 30))}px 'Space Grotesk', Inter, sans-serif`
       ctx.textAlign = 'center'
@@ -387,7 +409,7 @@ onBeforeUnmount(() => {
 })
 
 watch(
-  () => [props.selectedId, props.placing, props.frames.length,
+  () => [props.selectedId, props.placing, props.frames,
     props.ghost?.x, props.ghost?.y, props.ghost?.size, props.ghost?.valid],
   requestDraw,
 )

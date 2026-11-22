@@ -13,7 +13,10 @@ const zone = computed(() => zoneOfFrame(props.frame.x, props.frame.y, props.fram
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
     </button>
     <div class="card__top">
-      <div class="card__avatar" :style="{ background: frame.color, color: frame.ink }">{{ frame.initials }}</div>
+      <div class="card__avatar" :style="{ background: frame.color, color: frame.ink }">
+        <img v-if="frame.photoUrl" :src="frame.photoUrl" :alt="`Photo of ${frame.name}`">
+        <template v-else>{{ frame.initials }}</template>
+      </div>
       <div class="card__who">
         <span class="card__name">{{ frame.name }}</span>
         <span class="card__meta">{{ frame.size }}×{{ frame.size }} · Zone {{ zone.id }} · {{ frame.placedAt }}</span>
@@ -58,6 +61,8 @@ const zone = computed(() => zoneOfFrame(props.frame.x, props.frame.y, props.fram
   font-size: 30px;
   font-weight: 600;
 }
+.card__avatar { overflow: hidden; }
+.card__avatar img { width: 100%; height: 100%; object-fit: cover; }
 .card__who { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .card__name { font-size: 17px; font-weight: 600; }
 .card__meta { font-size: 12px; color: var(--muted); }

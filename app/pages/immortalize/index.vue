@@ -16,11 +16,19 @@ const nameError = computed(() => {
   return ''
 })
 const noteError = computed(() => (noteHasLink.value ? "Links aren't allowed — an @handle is fine." : ''))
-const ready = computed(() => photoState.value === 'ok' && !nameError.value && !noteError.value)
+const ready = computed(() => photoState.value === 'ok' && (!api.live || !!draft.value.photoKey) &&
+  !nameError.value && !noteError.value)
 
-const MAX_BYTES = 5 * 1024 * 1024
+const MAX_BYTES = 10 * 1024 * 1024
+const api = useApi()
 
-function onPhoto(e: Event) {
+const PHOTO_ERRORS: Record<string, string> = {
+  rejected_by_moderation: "This photo didn't pass moderation. Try another one.",
+  too_large: 'That image is too large.',
+  not_an_image: "That file doesn't look like an image.",
+}
+
+async function onPhoto(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0]
   if (!file) return
   photoError.value = ''
@@ -31,21 +39,26 @@ function onPhoto(e: Event) {
   }
   if (file.size > MAX_BYTES) {
     photoState.value = 'error'
-    photoError.value = 'The image is over 5 MB.'
+    photoError.value = 'The image is over 10 MB.'
     return
   }
   photoState.value = 'checking'
-  const reader = new FileReader()
-  reader.onload = () => {
-    draft.value.photo = String(reader.result)
-    // The real check runs on the API. Until it is live the demo accepts every photo.
-    setTimeout(() => { photoState.value = 'ok'; draft.value.moderated = true }, 700)
-  }
-  reader.onerror = () => {
+  draft.value.photoKey = null
+  try {
+    const dataUrl = await squarePhoto(file)
+    draft.value.photo = dataUrl
+    if (api.live) {
+      const res = await api.post<{ photoKey: string }>('/photos', { dataUrl })
+      draft.value.photoKey = res.photoKey
+    } else {
+      await new Promise((r) => setTimeout(r, 500)) // demo: every photo passes
+    }
+    photoState.value = 'ok'
+  } catch (err) {
     photoState.value = 'error'
-    photoError.value = "Couldn't read that file."
+    const code = err instanceof ApiError ? String(err.body.error ?? '') : ''
+    photoError.value = PHOTO_ERRORS[code] ?? "Couldn't upload the photo. Try again."
   }
-  reader.readAsDataURL(file)
 }
 
 function pick(size: FrameSize) {

@@ -3,18 +3,40 @@ import { HEART } from '~/shared/wall'
 import type { WallFrame } from '~/composables/useWall'
 import type { WallView } from '~/components/WallCanvas.vue'
 
-const { frames, frameAt, isDemo } = useWall()
+const { frames, frameAt, status, load, byId } = useWall()
+const api = useApi()
+const route = useRoute()
 const wall = ref<{ zoomBy: (f: number) => void; centerOn: (x: number, y: number, s?: number) => void } | null>(null)
 const selected = ref<WallFrame | null>(null)
 const view = ref<WallView | null>(null)
 const reported = ref<string | null>(null)
+
+onMounted(() => load())
+
+// /?frame=123 opens the wall on that frame.
+watch([status, wall], ([s, w]) => {
+  const id = Number(route.query.frame)
+  if (s !== 'ready' || !w || !id) return
+  const f = byId(id)
+  if (!f) return
+  w.centerOn(f.x + f.size / 2, f.y + f.size / 2, 24)
+  selected.value = f
+}, { immediate: true })
 
 function onSelect(frame: WallFrame | null) {
   selected.value = frame
   reported.value = null
 }
 
-function onReport(frame: WallFrame) {
+async function onReport(frame: WallFrame) {
+  if (api.live) {
+    try {
+      await api.post(`/frames/${frame.id}/reports`, {})
+    } catch {
+      reported.value = "Couldn't send the report. Try again later."
+      return
+    }
+  }
   reported.value = `Thanks — the frame of ${frame.name} will be reviewed.`
 }
 </script>
@@ -34,7 +56,7 @@ function onReport(frame: WallFrame) {
         />
       </ClientOnly>
 
-      <p v-if="isDemo" class="demo">Preview with demo frames — purchases aren't live yet.</p>
+      <WallStatus />
 
       <div class="controls">
         <button type="button" class="btn btn--ghost btn--icon" aria-label="Zoom in" @click="wall?.zoomBy(1.5)">
@@ -62,21 +84,6 @@ function onReport(frame: WallFrame) {
 <style scoped>
 .page { height: 100dvh; display: flex; flex-direction: column; }
 .stage { position: relative; flex: 1; min-height: 0; }
-.demo {
-  position: absolute;
-  top: 12px;
-  left: 50%;
-  transform: translateX(-50%);
-  margin: 0;
-  padding: 6px 12px;
-  border-radius: 999px;
-  background: var(--amber-soft);
-  color: #633806;
-  font-size: 12px;
-  font-weight: 500;
-  white-space: nowrap;
-  pointer-events: none;
-}
 .controls {
   position: absolute;
   left: 16px;
@@ -89,12 +96,13 @@ function onReport(frame: WallFrame) {
 .minimap { position: absolute; right: 16px; bottom: 16px; }
 .selected {
   position: absolute;
-  top: 56px;
+  top: 72px;
   right: 16px;
   display: flex;
   flex-direction: column;
   gap: 8px;
   align-items: flex-end;
+  z-index: 2;
 }
 .selected__toast {
   margin: 0;
@@ -108,7 +116,6 @@ function onReport(frame: WallFrame) {
 @media (max-width: 720px) {
   .minimap { display: none; }
   .controls__label { display: none; }
-  .demo { top: 8px; font-size: 11px; }
   .selected {
     top: auto;
     left: 0;

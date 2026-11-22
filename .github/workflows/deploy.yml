@@ -30,6 +30,8 @@ jobs:
         run: npx nuxt generate
         env:
           NUXT_APP_BASE_URL: /${{ github.event.repository.name }}/
+          # The test environment's API (Render, free plan, fake payments).
+          NUXT_PUBLIC_API_BASE: https://remember-me-api-dev.onrender.com
       - uses: actions/upload-pages-artifact@v3
         with:
           path: .output/public

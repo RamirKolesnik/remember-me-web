@@ -5,17 +5,28 @@ import type { Ghost } from '~/components/WallCanvas.vue'
 useHead({ title: 'Choose your spot — remember.me' })
 
 const draft = useDraft()
-const { frames, frameAt, isFree } = useWall()
+const api = useApi()
+const route = useRoute()
+const { frames, frameAt, isFree, load } = useWall()
 const size = computed(() => draft.value.size as FrameSize)
 
-// The chosen top-left cell; starts just right of the heart.
+// The chosen top-left cell.
 const spot = ref<{ x: number; y: number } | null>(null)
 const hover = ref<{ x: number; y: number } | null>(null)
 const human = ref(false)
 const reserved = ref(false)
+const busy = ref(false)
+const reserveError = ref<string | null>(null)
+const heldCheckout = ref<string | null>(null)
+const cancelled = computed(() => route.query.cancelled === '1')
 
 onMounted(() => {
-  if (!draft.value.name || !draft.value.photo) navigateTo('/immortalize')
+  if (!draft.value.name || !draft.value.photo) {
+    navigateTo('/immortalize')
+    return
+  }
+  // Fresh data: other people may have bought or held spots meanwhile.
+  load(true)
 })
 
 const problem = computed(() => {
@@ -56,9 +67,43 @@ function onNudge(d: { dx: number; dy: number }) {
   hover.value = null
 }
 
-function reserve() {
-  if (!canReserve.value) return
-  reserved.value = true
+const RESERVE_ERRORS: Record<string, string> = {
+  spot_taken: 'Someone just took that spot. Pick another one.',
+  out_of_bounds: 'That spot is off the wall.',
+  heart_needs_1x1: 'Only a 1×1 frame can take the heart.',
+  links_not_allowed: "Links aren't allowed in the name or note.",
+  unknown_photo: 'Your photo expired. Go back and upload it again.',
+  captcha_failed: "Captcha check failed. Try again.",
+  payments_unavailable: "Payments aren't available right now.",
+}
+
+async function reserve() {
+  if (!canReserve.value || busy.value || !spot.value) return
+  reserveError.value = null
+  heldCheckout.value = null
+  if (!api.live) {
+    reserved.value = true
+    return
+  }
+  busy.value = true
+  try {
+    const res = await api.post<{ checkoutUrl: string }>('/reservations', {
+      x: spot.value.x, y: spot.value.y, size: size.value,
+      name: draft.value.name.trim(), note: draft.value.note.trim(),
+      ...(draft.value.photoKey ? { photoKey: draft.value.photoKey } : {}),
+    })
+    window.location.href = res.checkoutUrl
+  } catch (err) {
+    busy.value = false
+    if (err instanceof ApiError && err.body.error === 'hold_exists') {
+      reserveError.value = 'You already have a spot on hold. Finish paying for it or cancel it first.'
+      heldCheckout.value = typeof err.body.checkoutUrl === 'string' ? err.body.checkoutUrl : null
+      return
+    }
+    const code = err instanceof ApiError ? String(err.body.error ?? '') : ''
+    reserveError.value = RESERVE_ERRORS[code] ?? "Couldn't reserve the spot. Try again."
+    if (code === 'spot_taken') load(true)
+  }
 }
 
 const fmt = (n: number) => `$${n.toLocaleString('en-US')}`
@@ -86,6 +131,7 @@ const fmt = (n: number) => `$${n.toLocaleString('en-US')}`
       </section>
 
       <aside class="side">
+        <p v-if="cancelled" class="held" role="status">Payment cancelled — the spot is free again. Pick any spot to try again.</p>
         <div class="panel">
           <h1>Your spot</h1>
           <p v-if="!spot" class="muted">Pick a free spot on the wall. The closer to the heart, the more it costs.</p>
@@ -109,9 +155,11 @@ const fmt = (n: number) => `$${n.toLocaleString('en-US')}`
             <small>captcha</small>
           </label>
 
-          <button type="button" class="btn btn--lg" :aria-disabled="!canReserve" @click="reserve">
-            {{ price !== null ? `Reserve & pay ${fmt(price)}` : 'Reserve & pay' }}
+          <button type="button" class="btn btn--lg" :aria-disabled="!canReserve || busy" @click="reserve">
+            {{ busy ? 'Reserving…' : price !== null ? `Reserve & pay ${fmt(price)}` : 'Reserve & pay' }}
           </button>
+          <p v-if="reserveError" class="pill pill--danger problem" role="alert">{{ reserveError }}</p>
+          <a v-if="heldCheckout" :href="heldCheckout" class="btn btn--ghost">Go to my held spot</a>
           <p class="muted small">We hold the spot for 15 minutes while you pay. Cards, Apple Pay, Google Pay and PayPal.</p>
         </div>
 
