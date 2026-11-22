@@ -1,0 +1,126 @@
+<script setup lang="ts">
+import { HEART } from '~/shared/wall'
+import type { WallFrame } from '~/composables/useWall'
+import type { WallView } from '~/components/WallCanvas.vue'
+
+const { frames, frameAt, isDemo } = useWall()
+const wall = ref<{ zoomBy: (f: number) => void; centerOn: (x: number, y: number, s?: number) => void } | null>(null)
+const selected = ref<WallFrame | null>(null)
+const view = ref<WallView | null>(null)
+const reported = ref<string | null>(null)
+
+function onSelect(frame: WallFrame | null) {
+  selected.value = frame
+  reported.value = null
+}
+
+function onReport(frame: WallFrame) {
+  reported.value = `Thanks — the frame of ${frame.name} will be reviewed.`
+}
+</script>
+
+<template>
+  <div class="page">
+    <SiteHeader />
+    <main class="stage">
+      <ClientOnly>
+        <WallCanvas
+          ref="wall"
+          :frames="frames"
+          :frame-at="frameAt"
+          :selected-id="selected?.id ?? null"
+          @select="onSelect"
+          @view="view = $event"
+        />
+      </ClientOnly>
+
+      <p v-if="isDemo" class="demo">Preview with demo frames — purchases aren't live yet.</p>
+
+      <div class="controls">
+        <button type="button" class="btn btn--ghost btn--icon" aria-label="Zoom in" @click="wall?.zoomBy(1.5)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+        </button>
+        <button type="button" class="btn btn--ghost btn--icon" aria-label="Zoom out" @click="wall?.zoomBy(1 / 1.5)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14" /></svg>
+        </button>
+        <button type="button" class="btn btn--ghost" @click="wall?.centerOn(HEART.x + 0.5, HEART.y + 0.5, 16)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M12 2v4M12 18v4M2 12h4M18 12h4" /></svg>
+          <span class="controls__label">Back to the heart</span>
+        </button>
+      </div>
+
+      <WallMinimap class="minimap" :view="view" @jump="wall?.centerOn($event.x, $event.y)" />
+
+      <div v-if="selected" class="selected">
+        <FrameCard :frame="selected" @close="onSelect(null)" @report="onReport" />
+        <p v-if="reported" class="selected__toast" role="status">{{ reported }}</p>
+      </div>
+    </main>
+  </div>
+</template>
+
+<style scoped>
+.page { height: 100dvh; display: flex; flex-direction: column; }
+.stage { position: relative; flex: 1; min-height: 0; }
+.demo {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--amber-soft);
+  color: #633806;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.controls {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.minimap { position: absolute; right: 16px; bottom: 16px; }
+.selected {
+  position: absolute;
+  top: 56px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+}
+.selected__toast {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 13px;
+  max-width: 320px;
+}
+@media (max-width: 720px) {
+  .minimap { display: none; }
+  .controls__label { display: none; }
+  .demo { top: 8px; font-size: 11px; }
+  .selected {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    align-items: stretch;
+  }
+  .selected :deep(.card) {
+    width: 100%;
+    border-radius: 16px 16px 0 0;
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+  .selected__toast { margin: 0 16px 8px; order: -1; }
+}
+</style>
