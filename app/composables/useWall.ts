@@ -2,6 +2,8 @@ import { HEART, WALL_SIZE, type FrameSize } from '~/shared/wall'
 
 export interface WallFrame {
   id: number
+  /** Order in which the frame went live: "I'm #4,812 on the wall". */
+  number: number | null
   x: number
   y: number
   size: FrameSize
@@ -14,8 +16,9 @@ export interface WallFrame {
   photoUrl: string | null
 }
 
-interface ApiFrame {
+export interface ApiFrame {
   id: number
+  number: number | null
   x: number
   y: number
   size: number
@@ -38,10 +41,10 @@ const initialsOf = (name: string) =>
 const monthOf = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : ''
 
-function fromApi(f: ApiFrame): WallFrame {
+export function fromApi(f: ApiFrame): WallFrame {
   const [color, ink] = PALETTE[f.id % PALETTE.length]!
   return {
-    id: f.id, x: f.x, y: f.y, size: f.size as FrameSize, name: f.name, note: f.note,
+    id: f.id, number: f.number ?? null, x: f.x, y: f.y, size: f.size as FrameSize, name: f.name, note: f.note,
     color, ink, initials: initialsOf(f.name), placedAt: monthOf(f.placedAt), photoUrl: f.photoUrl,
   }
 }
@@ -83,7 +86,7 @@ function buildDemoFrames(): WallFrame[] {
     const last = LAST[Math.floor(rnd() * LAST.length)]!
     const handle = `${first.toLowerCase()}.${Math.floor(rnd() * 90 + 10)}`
     frames.push({
-      id: frames.length + 1, x, y, size: n, name: `${first} ${last}`,
+      id: frames.length + 1, number: frames.length + 1, x, y, size: n, name: `${first} ${last}`,
       note: NOTES[Math.floor(rnd() * NOTES.length)]!.replace('{h}', handle).replace('{n}', first),
       color, ink, initials: first[0]! + last[0]!,
       placedAt: `${['Sep', 'Oct', 'Nov'][Math.floor(rnd() * 3)]} 2026`, photoUrl: null,
