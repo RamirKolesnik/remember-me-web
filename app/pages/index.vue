@@ -72,7 +72,10 @@ async function onReport(frame: WallFrame) {
         </button>
       </div>
 
-      <WallMinimap class="minimap" :view="view" @jump="wall?.centerOn($event.x, $event.y)" />
+      <div class="side">
+        <WallStats />
+        <WallMinimap :view="view" @jump="wall?.centerOn($event.x, $event.y)" />
+      </div>
 
       <div v-if="selected" class="selected">
         <FrameCard :frame="selected" @close="onSelect(null)" @report="onReport" />
@@ -94,7 +97,14 @@ async function onReport(frame: WallFrame) {
   align-items: flex-start;
   gap: 8px;
 }
-.minimap { position: absolute; right: 16px; bottom: 16px; }
+.side {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 .selected {
   position: absolute;
   top: 72px;
@@ -115,7 +125,7 @@ async function onReport(frame: WallFrame) {
   max-width: 320px;
 }
 @media (max-width: 720px) {
-  .minimap { display: none; }
+  .side { display: none; }
   .controls__label { display: none; }
   .selected {
     top: auto;
