@@ -1,4 +1,4 @@
-import { HEART, WALL_SIZE, type FrameSize } from '~/shared/wall'
+import { overlapsHeart, WALL_SIZE, type FrameSize } from '~/shared/wall'
 
 export interface WallFrame {
   id: number
@@ -65,9 +65,8 @@ function buildDemoFrames(): WallFrame[] {
     return seed / 2147483648
   }
   const taken = new Uint8Array(WALL_SIZE * WALL_SIZE)
-  taken[HEART.y * WALL_SIZE + HEART.x] = 1
   const fits = (x: number, y: number, n: number) => {
-    if (x < 0 || y < 0 || x + n > WALL_SIZE || y + n > WALL_SIZE) return false
+    if (x < 0 || y < 0 || x + n > WALL_SIZE || y + n > WALL_SIZE || overlapsHeart(x, y, n)) return false
     for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) if (taken[(y + j) * WALL_SIZE + x + i]) return false
     return true
   }
@@ -77,8 +76,8 @@ function buildDemoFrames(): WallFrame[] {
     const r = rnd()
     const n: FrameSize = r < 0.6 ? 1 : r < 0.9 ? 2 : 3
     const spread = rnd() < 0.85 ? 34 : 160
-    const x = Math.round(HEART.x + gauss() * spread)
-    const y = Math.round(HEART.y + gauss() * spread)
+    const x = Math.round(WALL_SIZE / 2 + gauss() * spread)
+    const y = Math.round(WALL_SIZE / 2 + gauss() * spread)
     if (!fits(x, y, n)) continue
     for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) taken[(y + j) * WALL_SIZE + x + i] = 1
     const [color, ink] = PALETTE[Math.floor(rnd() * PALETTE.length)]!
