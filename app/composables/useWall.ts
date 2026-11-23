@@ -13,6 +13,8 @@ export interface WallFrame {
   ink: string
   initials: string
   placedAt: string
+  /** When the frame went live (ms), for "5 min ago". Null on demo frames. */
+  liveAt: number | null
   photoUrl: string | null
 }
 
@@ -45,7 +47,8 @@ export function fromApi(f: ApiFrame): WallFrame {
   const [color, ink] = PALETTE[f.id % PALETTE.length]!
   return {
     id: f.id, number: f.number ?? null, x: f.x, y: f.y, size: f.size as FrameSize, name: f.name, note: f.note,
-    color, ink, initials: initialsOf(f.name), placedAt: monthOf(f.placedAt), photoUrl: f.photoUrl,
+    color, ink, initials: initialsOf(f.name), placedAt: monthOf(f.placedAt),
+    liveAt: f.placedAt ? Date.parse(f.placedAt) : null, photoUrl: f.photoUrl,
   }
 }
 
@@ -88,7 +91,7 @@ function buildDemoFrames(): WallFrame[] {
       id: frames.length + 1, number: frames.length + 1, x, y, size: n, name: `${first} ${last}`,
       note: NOTES[Math.floor(rnd() * NOTES.length)]!.replace('{h}', handle).replace('{n}', first),
       color, ink, initials: first[0]! + last[0]!,
-      placedAt: `${['Sep', 'Oct', 'Nov'][Math.floor(rnd() * 3)]} 2026`, photoUrl: null,
+      placedAt: `${['Sep', 'Oct', 'Nov'][Math.floor(rnd() * 3)]} 2026`, liveAt: null, photoUrl: null,
     })
   }
   return frames
@@ -101,6 +104,7 @@ const state = {
   occupancy: null as Int32Array | null,
   /** Cells on hold by other buyers: taken for the spot picker, invisible on the wall. */
   held: null as Uint8Array | null,
+  ids: new Map<number, WallFrame>(),
 }
 
 function index(frames: WallFrame[], holds: { x: number; y: number; size: number }[]) {
@@ -114,7 +118,28 @@ function index(frames: WallFrame[], holds: { x: number; y: number; size: number 
   }
   state.occupancy = occ
   state.held = held
+  state.ids = new Map(frames.map((f) => [f.id, f]))
   state.frames.value = frames
+}
+
+/** Puts frames that went live since the wall loaded onto it. Returns the ones added. */
+function addFrames(incoming: WallFrame[]): WallFrame[] {
+  const occ = state.occupancy
+  if (!occ) return []
+  const added = incoming.filter((f) => !state.ids.has(f.id))
+  if (!added.length) return []
+  const frames = [...state.frames.value, ...added]
+  added.forEach((f, k) => {
+    const i = frames.length - added.length + k
+    for (let a = 0; a < f.size; a++) for (let b = 0; b < f.size; b++) {
+      const c = (f.y + b) * WALL_SIZE + f.x + a
+      occ[c] = i + 1
+      if (state.held) state.held[c] = 0
+    }
+    state.ids.set(f.id, f)
+  })
+  state.frames.value = frames
+  return added
 }
 
 export function useWall() {
@@ -161,11 +186,11 @@ export function useWall() {
   }
 
   const cellsTaken = computed(() => state.frames.value.reduce((s, f) => s + f.size * f.size, 0))
-  const byId = (id: number) => state.frames.value.find((f) => f.id === id) ?? null
+  const byId = (id: number) => state.ids.get(id) ?? null
   const byNumber = (n: number) => state.frames.value.find((f) => f.number === n) ?? null
 
   return {
-    frames: state.frames, status: state.status, load, frameAt, isFree, cellsTaken, byId, byNumber,
+    frames: state.frames, status: state.status, load, frameAt, isFree, cellsTaken, byId, byNumber, addFrames,
     isDemo: !api.live,
   }
 }
