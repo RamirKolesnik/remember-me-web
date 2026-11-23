@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { basePrice, HEART, isHeart, placementError, priceOf, zoneOfFrame, type FrameSize } from '~/shared/wall'
+import { basePrice, HEART, placementError, priceOf, zoneOfFrame, type FrameSize } from '~/shared/wall'
 import type { Ghost } from '~/components/WallCanvas.vue'
 import { ApiError } from '~/composables/useApi'
 
@@ -35,7 +35,7 @@ const problem = computed(() => {
   if (!p) return null
   const err = placementError(p.x, p.y, size.value)
   if (err === 'out_of_bounds') return 'That spot is off the wall.'
-  if (err === 'heart_needs_1x1') return 'Only a 1×1 frame can take the heart.'
+  if (err === 'heart_not_for_sale') return "The heart isn't sold on the site — pick a spot around it."
   if (!isFree(p.x, p.y, size.value)) return 'Someone is already there — pick a free spot.'
   return null
 })
@@ -49,11 +49,13 @@ const ghost = computed<Ghost | null>(() => {
 
 const zone = computed(() => (spot.value ? zoneOfFrame(spot.value.x, spot.value.y, size.value) : null))
 const price = computed(() => (spot.value && !problem.value ? priceOf(spot.value.x, spot.value.y, size.value) : null))
-const heart = computed(() => !!spot.value && isHeart(spot.value.x, spot.value.y, size.value))
+// Cells between the frame and the edge of the heart.
 const distance = computed(() => {
   if (!spot.value) return 0
-  const cx = spot.value.x + (size.value - 1) / 2, cy = spot.value.y + (size.value - 1) / 2
-  return Math.floor(Math.max(Math.abs(cx - HEART.x), Math.abs(cy - HEART.y)))
+  const mid = HEART.x + HEART.size / 2
+  const cx = spot.value.x + size.value / 2, cy = spot.value.y + size.value / 2
+  const d = Math.max(Math.abs(cx - mid), Math.abs(cy - mid)) - (HEART.size + size.value) / 2
+  return Math.max(0, Math.floor(d))
 })
 const canReserve = computed(() => price.value !== null && human.value)
 
@@ -63,7 +65,7 @@ function onPick(cell: { x: number; y: number }) {
 }
 
 function onNudge(d: { dx: number; dy: number }) {
-  const base = spot.value ?? { x: HEART.x + 1, y: HEART.y }
+  const base = spot.value ?? { x: HEART.x + HEART.size, y: HEART.y }
   spot.value = { x: base.x + d.dx, y: base.y + d.dy }
   hover.value = null
 }
@@ -71,7 +73,7 @@ function onNudge(d: { dx: number; dy: number }) {
 const RESERVE_ERRORS: Record<string, string> = {
   spot_taken: 'Someone just took that spot. Pick another one.',
   out_of_bounds: 'That spot is off the wall.',
-  heart_needs_1x1: 'Only a 1×1 frame can take the heart.',
+  heart_not_for_sale: "The heart isn't sold on the site — pick a spot around it.",
   links_not_allowed: "Links aren't allowed in the name or note.",
   unknown_photo: 'Your photo expired. Go back and upload it again.',
   captcha_failed: "Captcha check failed. Try again.",
@@ -140,12 +142,12 @@ const fmt = (n: number) => `$${n.toLocaleString('en-US')}`
             <dl class="facts">
               <dt>Frame</dt><dd>{{ size }}×{{ size }} · {{ size * size }} {{ size === 1 ? 'cell' : 'cells' }}</dd>
               <dt>Cells</dt><dd>({{ spot.x }}{{ size > 1 ? `–${spot.x + size - 1}` : '' }}, {{ spot.y }}{{ size > 1 ? `–${spot.y + size - 1}` : '' }})</dd>
-              <dt>Zone</dt><dd>{{ heart ? 'The heart' : `Zone ${zone?.id} · ×${zone?.multiplier}` }}</dd>
+              <dt>Zone</dt><dd>Zone {{ zone?.id }} · ×{{ zone?.multiplier }}</dd>
               <dt>To the heart</dt><dd>{{ distance }} {{ distance === 1 ? 'cell' : 'cells' }}</dd>
             </dl>
             <p v-if="problem" class="pill pill--danger problem" role="alert">{{ problem }}</p>
             <div v-else-if="price !== null" class="total">
-              <span class="muted">{{ heart ? 'Fixed price' : `(${basePrice(size) - size * size} + ${size * size}) × ${zone?.multiplier}` }}</span>
+              <span class="muted">({{ basePrice(size) - size * size }} + {{ size * size }}) × {{ zone?.multiplier }}</span>
               <span class="total__price">{{ fmt(price) }}</span>
             </div>
           </template>

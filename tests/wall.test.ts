@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  containsLink, HEART_PRICE, placementError, priceOf, zoneOfCell, zoneOfFrame,
+  containsLink, HEART, HEART_PRICE_FROM, isHeart, isHeartCell, placementError, priceOf, zoneOfCell, zoneOfFrame,
 } from '../app/shared/wall.ts'
 
 test('zones are nested squares around the center', () => {
@@ -30,12 +30,23 @@ test('a frame on a zone border is priced by the dearer zone', () => {
   assert.equal(zoneOfFrame(447, 500, 3).id, 2)
 })
 
-test('the heart', () => {
-  assert.equal(priceOf(500, 500, 1), HEART_PRICE)
-  assert.equal(priceOf(501, 500, 1), 15)
-  assert.equal(placementError(499, 499, 2), 'heart_needs_1x1')
-  assert.equal(placementError(498, 498, 3), 'heart_needs_1x1')
-  assert.equal(placementError(500, 500, 1), null)
+test('the heart is a 4x4 block at the center, not for sale on the site', () => {
+  assert.deepEqual(HEART, { x: 498, y: 498, size: 4 })
+  // Centered: as many cells on each side of it.
+  assert.equal(HEART.x, 1000 - (HEART.x + HEART.size))
+  assert.equal(HEART_PRICE_FROM, 10_000)
+  assert.ok(isHeart(498, 498, 4))
+  assert.ok(!isHeart(500, 500, 1))
+  for (const [x, y] of [[498, 498], [501, 501], [498, 501], [500, 499]]) {
+    assert.ok(isHeartCell(x!, y!), `${x},${y} is in the heart`)
+    assert.equal(placementError(x!, y!, 1), 'heart_not_for_sale')
+  }
+  assert.equal(placementError(495, 495, 3), null) // ends at 497
+  assert.equal(placementError(496, 496, 3), 'heart_not_for_sale') // touches 498
+  assert.equal(placementError(502, 498, 1), null)
+  assert.equal(placementError(497, 502, 1), null)
+  assert.equal(placementError(501, 497, 2), 'heart_not_for_sale')
+  assert.ok(!isHeartCell(497, 500) && !isHeartCell(502, 500))
 })
 
 test('bounds', () => {

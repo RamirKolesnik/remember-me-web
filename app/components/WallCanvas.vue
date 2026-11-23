@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { HEART, HEART_PRICE, WALL_SIZE, ZONES } from '~/shared/wall'
+import { HEART, HEART_PRICE_FROM, isHeartCell, WALL_SIZE, ZONES } from '~/shared/wall'
 import { tierOf } from '~/shared/tiers'
 import type { WallFrame } from '~/composables/useWall'
 
@@ -19,6 +19,8 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   select: [frame: WallFrame | null]
+  /** A tap on the heart while nobody owns it. */
+  heart: []
   pick: [cell: { x: number; y: number }]
   hover: [cell: { x: number; y: number } | null]
   nudge: [delta: { dx: number; dy: number }]
@@ -32,8 +34,8 @@ const wrap = ref<HTMLDivElement | null>(null)
 const canvas = ref<HTMLCanvasElement | null>(null)
 
 // View state: the cell at the center of the screen and the size of a cell in CSS px.
-let cx = HEART.x + 0.5
-let cy = HEART.y + 0.5
+let cx = HEART.x + HEART.size / 2
+let cy = HEART.y + HEART.size / 2
 let s = props.initialCellPx
 let width = 0
 let height = 0
@@ -84,6 +86,106 @@ function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: n
   ctx.arcTo(x, y + h, x, y, rr)
   ctx.arcTo(x, y, x + w, y, rr)
   ctx.closePath()
+}
+
+// Users who ask for less motion get a still heart.
+const reducedMotion = import.meta.client && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+
+/** Tiny deterministic noise for the embers: the same spark always rises the same way. */
+const hash = (n: number) => {
+  const x = Math.sin(n * 127.1) * 43758.5453
+  return x - Math.floor(x)
+}
+
+function heartPath(ctx: CanvasRenderingContext2D, cx: number, cy: number, w: number) {
+  const h = w * 0.9
+  const top = cy - h * 0.35
+  ctx.beginPath()
+  ctx.moveTo(cx, cy + h * 0.5)
+  ctx.bezierCurveTo(cx - w * 0.6, cy + h * 0.05, cx - w * 0.5, top - h * 0.3, cx, top + h * 0.05)
+  ctx.bezierCurveTo(cx + w * 0.5, top - h * 0.3, cx + w * 0.6, cy + h * 0.05, cx, cy + h * 0.5)
+  ctx.closePath()
+}
+
+/**
+ * The legendary heart: molten gold-and-ember gradient that flows across it,
+ * a breathing glow and sparks drifting up. Once someone owns it, their photo
+ * shows through and the fire stays on the border.
+ */
+function drawHeart(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, taken: boolean, t: number) {
+  const r = Math.min(size * 0.08, 8)
+  const pulse = 0.5 + 0.5 * Math.sin(t * 2.2)
+
+  // Glow.
+  ctx.save()
+  ctx.shadowColor = `rgba(240, 128, 40, ${0.45 + 0.3 * pulse})`
+  ctx.shadowBlur = Math.min(Math.max(size * 0.35, 10), 64)
+  roundRectPath(ctx, x, y, size, size, r)
+  if (taken) {
+    // The owner's photo is already drawn: glow around it, not over it.
+    ctx.strokeStyle = '#E8762D'
+    ctx.lineWidth = 2
+    ctx.stroke()
+  } else {
+    ctx.fillStyle = '#E8762D'
+    ctx.fill()
+  }
+  ctx.restore()
+
+  // A flowing gradient. Its stops repeat every half, so sliding it by half its
+  // length loops without a seam.
+  const phase = (t * 0.18) % 1
+  const len = size * 4
+  const dx = 0.94, dy = -0.34 // up and to the right, unit length
+  const back = (len / 2) * phase
+  const gx = x - dx * back, gy = y + size - dy * back
+  const flow = ctx.createLinearGradient(gx, gy, gx + dx * len, gy + dy * len)
+  const stops = ['#C2401E', '#F08A2E', '#FFD36B', '#F08A2E', '#C2401E']
+  for (let k = 0; k < 2; k++) {
+    stops.forEach((c, i) => flow.addColorStop(Math.min(1, k * 0.5 + i * 0.125), c))
+  }
+
+  if (!taken) {
+    ctx.fillStyle = flow
+    roundRectPath(ctx, x, y, size, size, r)
+    ctx.fill()
+    // Hot core that breathes.
+    const core = ctx.createRadialGradient(x + size / 2, y + size * 0.55, 0, x + size / 2, y + size * 0.55, size * 0.7)
+    core.addColorStop(0, `rgba(255, 244, 200, ${0.35 + 0.35 * pulse})`)
+    core.addColorStop(1, 'rgba(255, 244, 200, 0)')
+    ctx.fillStyle = core
+    roundRectPath(ctx, x, y, size, size, r)
+    ctx.fill()
+    if (size >= 20) {
+      heartPath(ctx, x + size / 2, y + size / 2 + size * 0.03, size * (0.42 + 0.03 * pulse))
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.92)'
+      ctx.fill()
+    }
+  }
+
+  // Burning border, on the photo too.
+  ctx.save()
+  ctx.strokeStyle = flow
+  ctx.lineWidth = Math.max(2, size * (taken ? 0.05 : 0.03))
+  roundRectPath(ctx, x, y, size, size, r)
+  ctx.stroke()
+  ctx.restore()
+
+  // Embers rising from the heart.
+  if (size >= 24) {
+    const n = 14
+    for (let i = 0; i < n; i++) {
+      const life = 1.6 + hash(i) * 1.6
+      const p = ((t + hash(i + 50) * life) / life) % 1
+      const ex = x + size * (0.1 + 0.8 * hash(i + 100)) + Math.sin(t * 2 + i) * size * 0.04
+      const ey = y + size * 0.35 - p * size * 0.9
+      const er = Math.max(1, size * 0.022) * (1 - p * 0.6)
+      ctx.fillStyle = `rgba(255, ${170 + Math.round(60 * (1 - p))}, 90, ${(1 - p) * 0.85})`
+      ctx.beginPath()
+      ctx.arc(ex, ey, er, 0, Math.PI * 2)
+      ctx.fill()
+    }
+  }
 }
 
 function draw() {
@@ -175,20 +277,13 @@ function draw() {
     }
   }
 
-  // The heart.
-  const hx = sx(HEART.x), hy = sy(HEART.y), hs = Math.max(s, 3)
-  const heartTaken = props.frameAt(HEART.x, HEART.y)
-  if (!heartTaken) {
-    ctx.fillStyle = 'rgba(216, 90, 48, 0.18)'
-    ctx.fillRect(hx - 4, hy - 4, hs + 8, hs + 8)
-    ctx.fillStyle = '#FAECE7'
-    ctx.fillRect(hx, hy, hs, hs)
-  }
-  ctx.strokeStyle = '#D85A30'
-  ctx.lineWidth = Math.max(1.5, s * 0.12)
-  ctx.strokeRect(hx, hy, hs, hs)
+  // The heart: always burning, and the only thing on the wall that moves.
+  const hx = sx(HEART.x), hy = sy(HEART.y), hs = Math.max(HEART.size * s, 6)
+  const heartTaken = !!props.frameAt(HEART.x, HEART.y)
+  const heartVisible = hx + hs > -80 && hy + hs > -80 && hx < width + 80 && hy < height + 80
+  if (heartVisible) drawHeart(ctx, hx, hy, hs, heartTaken, reducedMotion ? 0 : performance.now() / 1000)
   if (s >= 3) {
-    const label = heartTaken ? 'The heart' : `The heart · $${HEART_PRICE.toLocaleString('en-US')}`
+    const label = heartTaken ? 'The heart' : `The heart · from $${HEART_PRICE_FROM.toLocaleString('en-US')}`
     ctx.font = "500 12px Inter, system-ui, sans-serif"
     const tw = ctx.measureText(label).width + 24
     const lx = hx + hs / 2 - tw / 2, ly = hy - 40
@@ -200,6 +295,8 @@ function draw() {
     ctx.textBaseline = 'middle'
     ctx.fillText(label, lx + tw / 2, ly + 13.5)
   }
+  // Keep the flame alive while the heart is on screen.
+  if (heartVisible && !reducedMotion) requestDraw()
 
   // Ghost of the frame being placed.
   const g = props.ghost
@@ -291,7 +388,8 @@ function onPointerMove(e: PointerEvent) {
     if (props.placing) {
       emit('hover', topLeftFor(fx, fy))
     } else if (canvas.value) {
-      canvas.value.style.cursor = props.frameAt(Math.floor(fx), Math.floor(fy)) ? 'pointer' : 'grab'
+      const x = Math.floor(fx), y = Math.floor(fy)
+      canvas.value.style.cursor = props.frameAt(x, y) || isHeartCell(x, y) ? 'pointer' : 'grab'
     }
     return
   }
@@ -329,7 +427,10 @@ function onPointerUp(e: PointerEvent) {
     if (props.placing) {
       emit('pick', topLeftFor(fx, fy))
     } else {
-      emit('select', props.frameAt(Math.floor(fx), Math.floor(fy)))
+      const cell = { x: Math.floor(fx), y: Math.floor(fy) }
+      const frame = props.frameAt(cell.x, cell.y)
+      if (!frame && isHeartCell(cell.x, cell.y)) emit('heart')
+      else emit('select', frame)
     }
   }
   if (pointers.size === 1) {

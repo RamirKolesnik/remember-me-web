@@ -3,8 +3,12 @@
 
 export const WALL_SIZE = 1000
 export const BASE_FEE = 2
-export const HEART = { x: 500, y: 500 } as const
-export const HEART_PRICE = 10_000
+/**
+ * The heart of the wall: a 4x4 block right at the center (cells 498..501).
+ * One buyer, sold in person rather than on the site, from HEART_PRICE_FROM.
+ */
+export const HEART = { x: 498, y: 498, size: 4 } as const
+export const HEART_PRICE_FROM = 10_000
 export const NOTE_MAX = 280
 export const NAME_MAX = 40
 export const CELL_PX = 40
@@ -51,19 +55,26 @@ export function isInsideWall(x: number, y: number, size: FrameSize): boolean {
     x >= 0 && y >= 0 && x + size <= WALL_SIZE && y + size <= WALL_SIZE
 }
 
-export function coversHeart(x: number, y: number, size: FrameSize): boolean {
-  return HEART.x >= x && HEART.x < x + size && HEART.y >= y && HEART.y < y + size
+/** Does a size x size frame at (x, y) touch any cell of the heart? */
+export function overlapsHeart(x: number, y: number, size: number): boolean {
+  return x < HEART.x + HEART.size && x + size > HEART.x &&
+    y < HEART.y + HEART.size && y + size > HEART.y
 }
 
-export function isHeart(x: number, y: number, size: FrameSize): boolean {
-  return size === 1 && x === HEART.x && y === HEART.y
+export function isHeartCell(x: number, y: number): boolean {
+  return overlapsHeart(x, y, 1)
 }
 
-export type PlacementError = 'out_of_bounds' | 'heart_needs_1x1'
+/** The heart frame itself: exactly the 4x4 block. */
+export function isHeart(x: number, y: number, size: number): boolean {
+  return x === HEART.x && y === HEART.y && size === HEART.size
+}
+
+export type PlacementError = 'out_of_bounds' | 'heart_not_for_sale'
 
 export function placementError(x: number, y: number, size: FrameSize): PlacementError | null {
   if (!isInsideWall(x, y, size)) return 'out_of_bounds'
-  if (coversHeart(x, y, size) && size !== 1) return 'heart_needs_1x1'
+  if (overlapsHeart(x, y, size)) return 'heart_not_for_sale'
   return null
 }
 
@@ -73,7 +84,6 @@ export function basePrice(size: FrameSize): number {
 
 /** Price in whole US dollars. */
 export function priceOf(x: number, y: number, size: FrameSize): number {
-  if (isHeart(x, y, size)) return HEART_PRICE
   return basePrice(size) * zoneOfFrame(x, y, size).multiplier
 }
 

@@ -10,6 +10,7 @@ const wall = ref<{ zoomBy: (f: number) => void; centerOn: (x: number, y: number,
 const selected = ref<WallFrame | null>(null)
 const view = ref<WallView | null>(null)
 const reported = ref<string | null>(null)
+const heartOpen = ref(false)
 
 onMounted(() => load())
 
@@ -26,6 +27,7 @@ watch([status, wall, () => route.query.frame], ([s, w, q]) => {
 
 function onSelect(frame: WallFrame | null) {
   selected.value = frame
+  heartOpen.value = false
   reported.value = null
 }
 
@@ -53,6 +55,7 @@ async function onReport(frame: WallFrame) {
           :frame-at="frameAt"
           :selected-id="selected?.id ?? null"
           @select="onSelect"
+          @heart="onSelect(null); heartOpen = true"
           @view="view = $event"
         />
       </ClientOnly>
@@ -66,7 +69,7 @@ async function onReport(frame: WallFrame) {
         <button type="button" class="btn btn--ghost btn--icon" aria-label="Zoom out" @click="wall?.zoomBy(1 / 1.5)">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14" /></svg>
         </button>
-        <button type="button" class="btn btn--ghost" @click="wall?.centerOn(HEART.x + 0.5, HEART.y + 0.5, 16)">
+        <button type="button" class="btn btn--ghost" @click="wall?.centerOn(HEART.x + HEART.size / 2, HEART.y + HEART.size / 2, 16)">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M12 2v4M12 18v4M2 12h4M18 12h4" /></svg>
           <span class="controls__label">Back to the heart</span>
         </button>
@@ -77,7 +80,10 @@ async function onReport(frame: WallFrame) {
         <WallMinimap :view="view" @jump="wall?.centerOn($event.x, $event.y)" />
       </div>
 
-      <div v-if="selected" class="selected">
+      <div v-if="heartOpen" class="selected">
+        <HeartCard @close="heartOpen = false" />
+      </div>
+      <div v-else-if="selected" class="selected">
         <FrameCard :frame="selected" @close="onSelect(null)" @report="onReport" />
         <p v-if="reported" class="selected__toast" role="status">{{ reported }}</p>
       </div>
@@ -134,7 +140,7 @@ async function onReport(frame: WallFrame) {
     bottom: 0;
     align-items: stretch;
   }
-  .selected :deep(.card) {
+  .selected :deep(.card), .selected :deep(.heart) {
     width: 100%;
     border-radius: 16px 16px 0 0;
     padding-bottom: max(16px, env(safe-area-inset-bottom));
