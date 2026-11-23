@@ -1,7 +1,5 @@
 <script setup lang="ts">
 defineProps<{ step?: 1 | 2 | 3 }>()
-const { frames, cellsTaken } = useWall()
-const fmt = (n: number) => n.toLocaleString('en-US')
 </script>
 
 <template>
@@ -16,8 +14,6 @@ const fmt = (n: number) => n.toLocaleString('en-US')
       <li :class="step === 3 ? 'now' : ''">3 · Pay</li>
     </ol>
     <div v-else class="head__right">
-      <span class="head__stat"><b>{{ fmt(frames.length) }}</b> frames</span>
-      <span class="head__stat head__stat--wide"><b>{{ fmt(1_000_000 - cellsTaken) }}</b> of 1,000,000 cells left</span>
       <NuxtLink to="/immortalize" class="btn">Immortalize yourself</NuxtLink>
     </div>
   </header>
@@ -58,18 +54,13 @@ const fmt = (n: number) => n.toLocaleString('en-US')
 }
 .head__mark i { border-radius: 1px; background: #fff; }
 .head__mark i:nth-child(2), .head__mark i:nth-child(3) { background: #CECBF6; }
-.head__right { display: flex; align-items: center; gap: 20px; font-size: 14px; color: var(--muted); }
-.head__stat b { color: var(--ink); font-weight: 600; }
+.head__right { display: flex; align-items: center; }
 .head__steps { display: flex; gap: 8px; margin: 0; padding: 0; list-style: none; font-size: 13px; }
 .head__steps li { padding: 6px 12px; border-radius: 999px; background: var(--line-soft); color: var(--muted); }
 .head__steps li.now { background: var(--ink); color: #fff; font-weight: 500; }
 .head__steps li.done { background: var(--ok-soft); color: var(--ok); font-weight: 500; }
 @media (max-width: 720px) {
   .head { padding: 10px 16px; }
-  .head__stat { display: none; }
   .head__steps { font-size: 12px; }
-}
-@media (max-width: 1000px) {
-  .head__stat--wide { display: none; }
 }
 </style>
