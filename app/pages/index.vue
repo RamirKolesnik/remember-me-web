@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { HEART } from '~/shared/wall'
-import type { WallFrame } from '~/composables/useWall'
+import { fromApi, type ApiFrame, type WallFrame } from '~/composables/useWall'
 import type { WallView } from '~/components/WallCanvas.vue'
 
-const { frames, frameAt, status, load, byId } = useWall()
+const { frames, frameAt, status, load, byId, byNumber } = useWall()
 const api = useApi()
 const route = useRoute()
 const wall = ref<{ zoomBy: (f: number) => void; centerOn: (x: number, y: number, s?: number) => void } | null>(null)
@@ -14,15 +14,39 @@ const heartOpen = ref(false)
 
 onMounted(() => load())
 
-// /?frame=123 opens the wall on that frame. The query is watched too: on a
-// direct load it only appears after hydration.
-watch([status, wall, () => route.query.frame], ([s, w, q]) => {
-  const id = Number(q)
-  if (s !== 'ready' || !w || !id) return
-  const f = byId(id)
-  if (!f) return
-  w.centerOn(f.x + f.size / 2, f.y + f.size / 2, 24)
-  selected.value = f
+function show(f: WallFrame) {
+  wall.value?.centerOn(f.x + f.size / 2, f.y + f.size / 2, 24)
+  onSelect(f)
+}
+
+/**
+ * Opens frame #n. The wall loaded at page open may not have it yet (bought
+ * since), so the API is asked too. False when there is no such frame.
+ */
+async function goToNumber(n: number): Promise<boolean> {
+  let f = byNumber(n)
+  if (!f && api.live) {
+    try {
+      f = fromApi(await api.get<ApiFrame>(`/frames/by-number/${n}`))
+    } catch {
+      f = null
+    }
+  }
+  if (!f) return false
+  show(f)
+  return true
+}
+
+// /?n=4812 (from /f/4812) and /?frame=123 open the wall on that frame. The
+// query is watched: on a direct load it only appears after hydration.
+watch([status, wall, () => route.query.n, () => route.query.frame], ([s, w, n, id]) => {
+  if (s !== 'ready' || !w) return
+  if (Number(n) > 0) {
+    goToNumber(Number(n))
+    return
+  }
+  const f = Number(id) > 0 ? byId(Number(id)) : null
+  if (f) show(f)
 }, { immediate: true })
 
 function onSelect(frame: WallFrame | null) {
@@ -61,6 +85,8 @@ async function onReport(frame: WallFrame) {
       </ClientOnly>
 
       <WallStatus />
+
+      <WallSearch class="search" :preview="byNumber" :find="goToNumber" />
 
       <div class="controls">
         <button type="button" class="btn btn--ghost btn--icon" aria-label="Zoom in" @click="wall?.zoomBy(1.5)">
@@ -103,6 +129,7 @@ async function onReport(frame: WallFrame) {
   align-items: flex-start;
   gap: 8px;
 }
+.search { position: absolute; top: 12px; left: 16px; z-index: 2; }
 .side {
   position: absolute;
   right: 16px;
@@ -131,7 +158,11 @@ async function onReport(frame: WallFrame) {
   max-width: 320px;
 }
 @media (max-width: 720px) {
-  .side { display: none; }
+  .search { left: 12px; right: 12px; }
+  /* The status pills move below the search bar. */
+  .stage :deep(.status) { top: 64px; }
+  .search { position: absolute; top: 12px; left: 16px; z-index: 2; }
+.side { display: none; }
   .controls__label { display: none; }
   .selected {
     top: auto;

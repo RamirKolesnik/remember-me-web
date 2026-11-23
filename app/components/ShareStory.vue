@@ -43,7 +43,7 @@ async function loadImage(attempt = 0) {
 }
 
 onMounted(() => {
-  link.value = frameLink(window.location.origin, config.app.baseURL, props.frame.id)
+  link.value = frameLink(window.location.origin, config.app.baseURL, props.frame)
   canShare.value = typeof navigator.share === 'function'
   loadImage()
 })

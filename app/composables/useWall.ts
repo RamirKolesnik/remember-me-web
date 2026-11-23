@@ -162,9 +162,10 @@ export function useWall() {
 
   const cellsTaken = computed(() => state.frames.value.reduce((s, f) => s + f.size * f.size, 0))
   const byId = (id: number) => state.frames.value.find((f) => f.id === id) ?? null
+  const byNumber = (n: number) => state.frames.value.find((f) => f.number === n) ?? null
 
   return {
-    frames: state.frames, status: state.status, load, frameAt, isFree, cellsTaken, byId,
+    frames: state.frames, status: state.status, load, frameAt, isFree, cellsTaken, byId, byNumber,
     isDemo: !api.live,
   }
 }
