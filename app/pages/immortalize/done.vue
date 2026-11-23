@@ -77,7 +77,7 @@ async function openFrame(id: number, status: unknown) {
         <h1>You're on the wall. Forever.</h1>
         <ShareStory :frame="frame" :story-url="storyUrl" />
         <div class="actions">
-          <NuxtLink :to="`/?frame=${frame.id}`" class="btn btn--ghost btn--lg">See it on the wall</NuxtLink>
+          <NuxtLink :to="frame.number ? `/?n=${frame.number}` : `/?frame=${frame.id}`" class="btn btn--ghost btn--lg">See it on the wall</NuxtLink>
           <NuxtLink to="/immortalize" class="btn btn--ghost btn--lg">Add another frame</NuxtLink>
         </div>
       </template>

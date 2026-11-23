@@ -1,9 +1,21 @@
 // Words and links for sharing a frame. Plain functions, so they can be tested.
 
-/** The public link of a frame: https://host/base/f/123 */
-export function frameLink(origin: string, baseURL: string, id: number): string {
+/**
+ * The public link of a frame, by the number on its story card:
+ * https://host/base/f/4812. A frame without a number yet falls back to its id.
+ */
+export function frameLink(origin: string, baseURL: string, f: { id: number; number: number | null }): string {
   const base = `/${baseURL.replace(/^\/+|\/+$/g, '')}/`.replace(/\/+/g, '/')
-  return `${origin.replace(/\/+$/, '')}${base}f/${id}`
+  const root = `${origin.replace(/\/+$/, '')}${base}`
+  return f.number ? `${root}f/${f.number}` : `${root}?frame=${f.id}`
+}
+
+/** "4812", "#4812", "#4,812", " 4 812 " → 4812. Anything else → null. */
+export function parseFrameNumber(input: string): number | null {
+  const s = input.trim().replace(/^(?:№|#)\s*/, '').replace(/[\s,._']/g, '')
+  if (!/^\d{1,7}$/.test(s)) return null
+  const n = Number(s)
+  return n >= 1 ? n : null
 }
 
 /** Text that goes with a shared story card or link. */
