@@ -30,7 +30,10 @@ const width = (taken: number, total: number) => (taken > 0 ? `max(3px, ${(taken 
       >
         <i :style="{ width: width(fill.taken, fill.total) }" />
       </div>
-      <p class="stats__note">{{ fmt(frames.length) }} frames · {{ fmt(fill.total - fill.taken) }} cells left</p>
+      <p class="stats__note">
+        <span>{{ fmt(frames.length) }} frames</span>
+        <span>{{ fmt(fill.total - fill.taken) }} left</span>
+      </p>
     </div>
 
     <ul class="stats__zones">
@@ -70,7 +73,16 @@ const width = (taken: number, total: number) => (taken > 0 ? `max(3px, ${(taken 
 .stats__row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .stats__title { font-size: 13px; font-weight: 600; color: var(--ink); }
 .stats__share { font-family: var(--font-display); font-size: 18px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
-.stats__note { margin: 0; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.stats__note {
+  margin: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 .stats__bar {
   height: 4px;
   border-radius: 999px;
