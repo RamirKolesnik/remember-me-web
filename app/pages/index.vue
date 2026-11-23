@@ -88,6 +88,8 @@ async function onReport(frame: WallFrame) {
 
       <WallSearch class="search" :preview="byNumber" :find="goToNumber" />
 
+      <RecentFeed class="feed" @pick="show" />
+
       <div class="controls">
         <button type="button" class="btn btn--ghost btn--icon" aria-label="Zoom in" @click="wall?.zoomBy(1.5)">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
@@ -130,6 +132,14 @@ async function onReport(frame: WallFrame) {
   gap: 8px;
 }
 .search { position: absolute; top: 12px; left: 16px; z-index: 2; }
+/* Under the search, above the zoom buttons (3 × 44px + gaps). */
+.feed {
+  position: absolute;
+  top: 68px;
+  left: 16px;
+  max-height: calc(100% - 68px - 188px);
+  z-index: 1;
+}
 .side {
   position: absolute;
   right: 16px;
@@ -161,8 +171,15 @@ async function onReport(frame: WallFrame) {
   .search { left: 12px; right: 12px; }
   /* The status pills move below the search bar. */
   .stage :deep(.status) { top: 64px; }
-  .search { position: absolute; top: 12px; left: 16px; z-index: 2; }
-.side { display: none; }
+  .side { display: none; }
+  /* Stats and minimap are hidden here, so the feed takes their corner. */
+  .feed {
+    top: auto;
+    left: auto;
+    right: 12px;
+    bottom: 16px;
+    max-height: calc(100% - 140px);
+  }
   .controls__label { display: none; }
   .selected {
     top: auto;
