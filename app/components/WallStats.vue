@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { formatShare, wallFill } from '~/shared/stats'
+import { tierOf } from '~/shared/tiers'
 
 const { frames } = useWall()
 
-// Same swatches as the minimap legend.
-const swatches: Record<number, string> = { 1: '#AFA9EC', 2: '#CECBF6', 3: '#EEEDFE', 4: '#F1EFE8' }
 
 const fill = computed(() => wallFill(frames.value))
 const fmt = (n: number) => n.toLocaleString('en-US')
@@ -39,7 +38,7 @@ const width = (taken: number, total: number) => (taken > 0 ? `max(3px, ${(taken 
     <ul class="stats__zones">
       <li v-for="z in fill.zones" :key="z.zone.id">
         <div class="stats__row">
-          <span class="stats__zone"><i :style="{ background: swatches[z.zone.id] }" />Zone {{ z.zone.id }} ×{{ z.zone.multiplier }}</span>
+          <span class="stats__zone"><i :style="{ background: tierOf(z.zone.id).accent }" />Zone {{ z.zone.id }} ×{{ z.zone.multiplier }}</span>
           <span class="stats__pct">{{ formatShare(z.taken, z.total) }}</span>
         </div>
         <div
@@ -51,7 +50,7 @@ const width = (taken: number, total: number) => (taken > 0 ? `max(3px, ${(taken 
           :aria-valuemax="z.total"
           :aria-valuetext="`${fmt(z.taken)} of ${fmt(z.total)} cells taken`"
         >
-          <i :style="{ width: width(z.taken, z.total) }" />
+          <i :style="{ width: width(z.taken, z.total), background: tierOf(z.zone.id).accent }" />
         </div>
       </li>
     </ul>

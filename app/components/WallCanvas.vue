@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { HEART, HEART_PRICE, WALL_SIZE, ZONES } from '~/shared/wall'
+import { tierOf } from '~/shared/tiers'
 import type { WallFrame } from '~/composables/useWall'
 
 export interface Ghost { x: number; y: number; size: number; valid: boolean }
@@ -26,7 +27,6 @@ const emit = defineEmits<{
 
 const MIN_CELL_PX = 0.6
 const MAX_CELL_PX = 48
-const ZONE_FILL: Record<number, string> = { 1: '#E9E6FA', 2: '#F0EEFC', 3: '#F6F5FD', 4: '#FBFAF7' }
 
 const wrap = ref<HTMLDivElement | null>(null)
 const canvas = ref<HTMLCanvasElement | null>(null)
@@ -100,7 +100,7 @@ function draw() {
   ctx.fillStyle = '#E9E7E0'
   ctx.fillRect(0, 0, width, height)
   for (const z of [...ZONES].reverse()) {
-    ctx.fillStyle = ZONE_FILL[z.id]!
+    ctx.fillStyle = tierOf(z.id).tint
     ctx.fillRect(sx(z.min), sy(z.min), (z.max - z.min + 1) * s, (z.max - z.min + 1) * s)
   }
 
@@ -124,13 +124,14 @@ function draw() {
     ctx.stroke()
   }
 
-  // Zone borders.
+  // Zone borders, each in its own tier colour.
   ctx.save()
   ctx.setLineDash([6, 6])
   ctx.lineWidth = 1.5
-  ctx.strokeStyle = 'rgba(127, 119, 221, 0.55)'
+  ctx.globalAlpha = 0.6
   for (const z of ZONES) {
     if (z.id === 4) continue
+    ctx.strokeStyle = tierOf(z.id).accent
     ctx.strokeRect(sx(z.min), sy(z.min), (z.max - z.min + 1) * s, (z.max - z.min + 1) * s)
   }
   ctx.restore()
