@@ -53,7 +53,7 @@ async function openFrame(id: number, status: unknown) {
   }
   state.value = frame.value ? 'ok' : 'missing'
   if (frame.value) {
-    draft.value = { name: '', note: '', photo: null, photoKey: null, size: 2 }
+    draft.value = { name: '', note: '', photo: null, photoKey: null }
     // Refresh the wall so "See it on the wall" shows the new frame.
     load(true)
   }

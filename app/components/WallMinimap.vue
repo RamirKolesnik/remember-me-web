@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { WALL_SIZE, ZONES } from '~/shared/wall'
+import { formatUsd, WALL_SIZE, ZONES } from '~/shared/wall'
 import { tierOf } from '~/shared/tiers'
 import type { WallView } from '~/components/WallCanvas.vue'
 
@@ -40,7 +40,7 @@ function onClick(e: MouseEvent) {
       <span v-if="viewBox" class="mini__view" :style="viewBox" />
     </button>
     <div class="mini__legend">
-      <span v-for="z in ZONES" :key="z.id"><i :style="{ background: tierOf(z.id).accent }" />Zone {{ z.id }} ×{{ z.multiplier }}</span>
+      <span v-for="z in ZONES" :key="z.id"><i :style="{ background: tierOf(z.id).accent }" />{{ tierOf(z.id).name }} {{ formatUsd(z.priceCents) }}</span>
     </div>
   </div>
 </template>

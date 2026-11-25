@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { HEART, HEART_PRICE_FROM, isHeartCell, WALL_SIZE, ZONES } from '~/shared/wall'
+import { CELL_PX, HEART, HEART_PRICE_FROM, isHeartCell, WALL_SIZE, ZONES } from '~/shared/wall'
 import { tierOf } from '~/shared/tiers'
 import type { WallFrame } from '~/composables/useWall'
 
@@ -15,7 +15,7 @@ const props = withDefaults(defineProps<{
   ghost?: Ghost | null
   ghostSize?: number
   initialCellPx?: number
-}>(), { selectedId: null, placing: false, ghost: null, ghostSize: 1, initialCellPx: 16 })
+}>(), { selectedId: null, placing: false, ghost: null, ghostSize: 1, initialCellPx: 32 })
 
 const emit = defineEmits<{
   select: [frame: WallFrame | null]
@@ -28,7 +28,8 @@ const emit = defineEmits<{
 }>()
 
 const MIN_CELL_PX = 0.6
-const MAX_CELL_PX = 48
+// Zoomed all the way in, a cell is a little over its 100% size.
+const MAX_CELL_PX = CELL_PX * 1.2
 
 const wrap = ref<HTMLDivElement | null>(null)
 const canvas = ref<HTMLCanvasElement | null>(null)

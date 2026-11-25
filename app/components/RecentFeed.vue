@@ -31,7 +31,7 @@ const fmt = (n: number) => n.toLocaleString('en-US')
 function metaOf(f: WallFrame) {
   if (isHeart(f.x, f.y, f.size)) return { text: 'The heart', color: 'var(--heart)' }
   const z = zoneOfFrame(f.x, f.y, f.size)
-  return { text: `${f.size}×${f.size} · Zone ${z.id}`, color: tierOf(z.id).accent }
+  return { text: `${tierOf(z.id).name} zone`, color: tierOf(z.id).accent }
 }
 
 /** Takes a fresh list of the newest frames: marks newcomers, puts them on the wall. */

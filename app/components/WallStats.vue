@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { formatShare, wallFill } from '~/shared/stats'
+import { formatUsd } from '~/shared/wall'
 import { tierOf } from '~/shared/tiers'
 
 const { frames } = useWall()
@@ -38,13 +39,13 @@ const width = (taken: number, total: number) => (taken > 0 ? `max(3px, ${(taken 
     <ul class="stats__zones">
       <li v-for="z in fill.zones" :key="z.zone.id">
         <div class="stats__row">
-          <span class="stats__zone"><i :style="{ background: tierOf(z.zone.id).accent }" />Zone {{ z.zone.id }} ×{{ z.zone.multiplier }}</span>
+          <span class="stats__zone"><i :style="{ background: tierOf(z.zone.id).accent }" />{{ tierOf(z.zone.id).name }} {{ formatUsd(z.zone.priceCents) }}</span>
           <span class="stats__pct">{{ formatShare(z.taken, z.total) }}</span>
         </div>
         <div
           class="stats__bar"
           role="progressbar"
-          :aria-label="`Zone ${z.zone.id}`"
+          :aria-label="`${tierOf(z.zone.id).name} zone`"
           :aria-valuenow="z.taken"
           aria-valuemin="0"
           :aria-valuemax="z.total"
