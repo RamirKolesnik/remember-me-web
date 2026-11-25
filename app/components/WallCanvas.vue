@@ -592,6 +592,25 @@ function draw() {
     }
   }
 
+  // The heart: always beating.
+  const hx = sx(HEART.x), hy = sy(HEART.y), hs = Math.max(HEART.size * s, 6)
+  const heartTaken = !!props.frameAt(HEART.x, HEART.y)
+  const heartVisible = hx + hs > -100 && hy + hs > -100 && hx < width + 100 && hy < height + 100
+  if (heartVisible) drawHeart(ctx, hx, hy, hs, heartTaken, b)
+  if (s >= 3) {
+    const label = heartTaken ? 'The heart' : `The heart · from $${HEART_PRICE_FROM.toLocaleString('en-US')}`
+    ctx.font = "500 12px Inter, system-ui, sans-serif"
+    const tw = ctx.measureText(label).width + 24
+    const lx = hx + hs / 2 - tw / 2, ly = hy - 40
+    ctx.fillStyle = COLORS.heart
+    roundRectPath(ctx, lx, ly, tw, 26, 13)
+    ctx.fill()
+    ctx.fillStyle = '#FFFFFF'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(label, lx + tw / 2, ly + 13.5)
+  }
+
   // Frames this visitor owns: a thin gold rim and, close enough, "You".
   const mineSet = props.mine.length ? new Set(props.mine) : null
   if (ceremony && now - ceremony.at > CEREMONY_MS) ceremony = null
@@ -641,25 +660,6 @@ function draw() {
       ctx.fillText(label, fcx, ly + 12.5)
       ctx.restore()
     }
-  }
-
-  // The heart: always beating.
-  const hx = sx(HEART.x), hy = sy(HEART.y), hs = Math.max(HEART.size * s, 6)
-  const heartTaken = !!props.frameAt(HEART.x, HEART.y)
-  const heartVisible = hx + hs > -100 && hy + hs > -100 && hx < width + 100 && hy < height + 100
-  if (heartVisible) drawHeart(ctx, hx, hy, hs, heartTaken, b)
-  if (s >= 3) {
-    const label = heartTaken ? 'The heart' : `The heart · from $${HEART_PRICE_FROM.toLocaleString('en-US')}`
-    ctx.font = "500 12px Inter, system-ui, sans-serif"
-    const tw = ctx.measureText(label).width + 24
-    const lx = hx + hs / 2 - tw / 2, ly = hy - 40
-    ctx.fillStyle = COLORS.heart
-    roundRectPath(ctx, lx, ly, tw, 26, 13)
-    ctx.fill()
-    ctx.fillStyle = '#FFFFFF'
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText(label, lx + tw / 2, ly + 13.5)
   }
 
   // The heart's pace, under it: how alive the wall is right now.

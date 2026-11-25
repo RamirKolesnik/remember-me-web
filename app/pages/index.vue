@@ -250,7 +250,6 @@ async function onReport(frame: WallFrame) {
   align-items: flex-end;
   z-index: 2;
 }
-.selected__toast--mine { background: #FFD27A; color: #3A2606; }
 .selected__toast {
   margin: 0;
   padding: 8px 12px;
@@ -260,6 +259,7 @@ async function onReport(frame: WallFrame) {
   font-size: 13px;
   max-width: 320px;
 }
+.selected__toast--mine { background: #FFD27A; color: #3A2606; }
 @media (max-width: 720px) {
   .search { left: 12px; right: 12px; }
   /* The status pills move below the search bar. */
@@ -286,7 +286,6 @@ async function onReport(frame: WallFrame) {
     border-radius: 16px 16px 0 0;
     padding-bottom: max(16px, env(safe-area-inset-bottom));
   }
-  .selected__toast--mine { background: #FFD27A; color: #3A2606; }
-.selected__toast { margin: 0 16px 8px; order: -1; }
+  .selected__toast { margin: 0 16px 8px; order: -1; }
 }
 </style>
