@@ -282,7 +282,8 @@ function drawClosed(ctx: CanvasRenderingContext2D, sx: (x: number) => number, sy
     // Keep the label on screen, but only by moving it within its own band:
     // a ring whose band is off screen gets no label rather than a stray one.
     const tx = sx(px), ty = sy(py)
-    const X = clamp(tx, w / 2 + 8, width - w / 2 - 8), Y = clamp(ty, h / 2 + 8, height - h / 2 - 8)
+    // Room at the top and bottom for the search bar, hints and buttons over the wall.
+    const X = clamp(tx, w / 2 + 8, width - w / 2 - 8), Y = clamp(ty, h / 2 + 60, height - h / 2 - 60)
     const slack = (band * s) / 2
     const box = { x0: X - w / 2, y0: Y - h / 2, x1: X + w / 2, y1: Y + h / 2 }
     const overlaps = labels.some((o) => box.x0 < o.x1 && box.x1 > o.x0 && box.y0 < o.y1 && box.y1 > o.y0)
