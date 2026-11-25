@@ -48,6 +48,8 @@ function toggleZones() {
 onMounted(() => {
   try { showZones.value = localStorage.getItem(ZONES_KEY) === '1' } catch { /* private mode */ }
   mine.value = readMine()
+  // A frame bought in another tab of this browser becomes "You" here too.
+  window.addEventListener('storage', onStorage)
   load()
 })
 
@@ -74,6 +76,11 @@ async function goToNumber(n: number): Promise<boolean> {
   if (route.query.mine === '1') celebrateFrame(f)
   return true
 }
+
+function onStorage(e: StorageEvent) {
+  if (e.key === 'rm.mine') mine.value = [...new Set([...mine.value, ...readMine()])]
+}
+onBeforeUnmount(() => window.removeEventListener('storage', onStorage))
 
 function celebrateFrame(f: WallFrame) {
   celebrate.value = f.id

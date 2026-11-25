@@ -3,6 +3,7 @@ import { CELL_PX, HEART, HEART_PRICE_FROM, isHeartCell, WALL_SIZE, ZONES } from 
 import { tierOf } from '~/shared/tiers'
 import { makeVessels } from '~/shared/vessels'
 import { beatStep, heartbeatLabel, purchasesLastHour } from '~/shared/heartbeat'
+import { readMine } from '~/shared/mine'
 import type { WallFrame } from '~/composables/useWall'
 
 export interface Ghost { x: number; y: number; size: number; valid: boolean }
@@ -148,7 +149,7 @@ const CEREMONY_MS = 12000
 const PULSE_MS = 1800
 const PULSE_SPEED = 320 // screen px per second
 const PULSE_GAP_MS = 900
-const pulses: { x: number; y: number; at: number; mine: boolean }[] = []
+const pulses: { x: number; y: number; at: number }[] = []
 const beatQueue: number[] = []
 /** How long a new frame stays lit, in ms. */
 const FRESH_MS = 9000
@@ -425,7 +426,7 @@ function draw() {
   }
 
   // Rings: red from the heart on every beat; light pink from every new frame
-  // bought by someone else (gold if it is yours, bought in another tab).
+  // bought by someone else.
   const rings: { x: number; y: number; r: number; a: number; rgb: string; w: number }[] = []
   if (!reducedMotion) {
     const near = hcx > -500 && hcy > -500 && hcx < width + 500 && hcy < height + 500
@@ -444,7 +445,7 @@ function draw() {
       const k = age / PULSE_MS
       rings.push({
         x: sx(p.x), y: sy(p.y), r: Math.max(s / 2, 4) + (age / 1000) * PULSE_SPEED,
-        a: 0.75 * (1 - k), rgb: p.mine ? '255, 210, 122' : '255, 196, 206', w: 4,
+        a: 0.75 * (1 - k), rgb: '255, 196, 206', w: 4,
       })
     }
     if (rings.length) {
@@ -524,6 +525,7 @@ function draw() {
   // Frames, inset so the seams show around every photo. The pulse lights
   // their rims as it passes; the photos themselves are never tinted.
   const inset = seam / 2
+  const ownIds = props.mine.length ? new Set(props.mine) : null
   const lit: { f: WallFrame; k: number }[] = []
   for (const f of props.frames) {
     if (f.x + f.size < x0 || f.x > x1 || f.y + f.size < y0 || f.y > y1) continue
@@ -551,7 +553,8 @@ function draw() {
       ctx.textBaseline = 'middle'
       ctx.fillText(f.initials, px + size / 2, py + size / 2 + 1)
     }
-    if (rings.length && size >= 6) {
+    // Your frames keep their gold rim and do not react to other people's pulses.
+    if (rings.length && size >= 6 && !ownIds?.has(f.id)) {
       let a = 0
       for (const ring of rings) {
         const d = Math.hypot(px + size / 2 - ring.x, py + size / 2 - ring.y)
@@ -948,9 +951,10 @@ watch(wallStatus, (st) => {
 watch(() => props.frames, (list) => {
   if (!primed || wallStatus.value !== 'ready') return
   const now = performance.now()
-  const mineSet = new Set(props.mine)
+  // Read storage too: a frame bought in another tab is yours before this tab hears of it.
+  const mineSet = new Set([...props.mine, ...readMine()])
   // Queue after pulses still waiting, so a busy minute plays out one by one.
-  const incoming = list.filter((f) => !known.has(f.id) && f.number !== null).length
+  const incoming = list.filter((f) => !known.has(f.id) && f.number !== null && !mineSet.has(f.id)).length
   // A rush plays faster, so it all fits in about 10 seconds.
   const gap = incoming > 10 ? Math.max(150, 10_000 / incoming) : PULSE_GAP_MS
   let at = Math.max(now, ...pulses.map((p) => p.at + gap))
@@ -958,10 +962,11 @@ watch(() => props.frames, (list) => {
   for (const f of list) {
     if (known.has(f.id)) continue
     known.add(f.id)
-    if (f.number === null) continue
+    // Only other people's frames pulse; yours are marked "You" instead.
+    if (f.number === null || mineSet.has(f.id)) continue
     fresh.set(f.id, at)
     if (!reducedMotion) {
-      pulses.push({ x: f.x + f.size / 2, y: f.y + f.size / 2, at, mine: mineSet.has(f.id) })
+      pulses.push({ x: f.x + f.size / 2, y: f.y + f.size / 2, at })
       beatQueue.push(at)
     }
     at += gap
