@@ -5,7 +5,7 @@ import { NOTHING_SOLD, pricing, zonePrice } from '../app/shared/wall.ts'
 
 test('waves have names people understand', () => {
   assert.equal(waveName({ n: 1 }), 'the center')
-  assert.equal(waveName({ n: 2 }), 'the Uncommon ring')
+  assert.equal(waveName({ n: 2 }), 'the Veins ring')
   assert.equal(waveName({ n: 3 }), 'the edge')
 })
 
@@ -27,15 +27,15 @@ test('price steps read as a countdown', () => {
 test('a closed wave says what opens it', () => {
   const p = pricing({ ...NOTHING_SOLD, 1: 3_000, 2: 6_000 })
   assert.equal(unlockText(p, 2), 'Opens when the center is half sold · 20% there')
-  assert.equal(unlockText(p, 3), 'Opens after the Uncommon ring')
+  assert.equal(unlockText(p, 3), 'Opens after the Veins ring')
 })
 
 test('news at launch: closest price rise first, then founders, then the next wave', () => {
   const news = wallNews(pricing({ ...NOTHING_SOLD, 1: 300 }))
   assert.deepEqual(news.map((n) => n.kind), ['step', 'founders', 'step', 'wave'])
-  assert.equal(news[0]!.text, 'Epic $29 now · rises to $39 in 1,697 spots')
+  assert.equal(news[0]!.text, 'Chambers $29 now · rises to $39 in 1,697 spots')
   assert.equal(news[1]!.text, 'Founder badge for the first 1,000 frames · 700 left')
-  assert.equal(news[3]!.text, 'Next: the Uncommon ring opens · when the center is half sold · <1% there')
+  assert.equal(news[3]!.text, 'Next: the Veins ring opens · when the center is half sold · <1% there')
   // No founder line once they are gone.
   assert.ok(!wallNews(pricing({ ...NOTHING_SOLD, 2: 1_000 })).some((n) => n.kind === 'founders'))
 })

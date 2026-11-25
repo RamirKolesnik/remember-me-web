@@ -56,12 +56,8 @@ function onClick(e: MouseEvent) {
 
 <style scoped>
 .mini {
-  width: 184px;
-  padding: 12px;
-  background: var(--paper);
-  border: 1px solid var(--line);
-  border-radius: 12px;
   display: flex;
+  align-items: center;
   flex-direction: column;
   gap: 10px;
 }
@@ -74,16 +70,16 @@ function onClick(e: MouseEvent) {
   border-radius: 4px;
   overflow: hidden;
   cursor: pointer;
-  background: var(--line-soft);
+  background: #0E080B;
 }
 .mini__zone { position: absolute; border-radius: 2px; }
 /* Not on sale yet: washed out and hatched, like on the wall. */
 .mini__zone--closed {
-  background-image: repeating-linear-gradient(135deg, rgba(24, 23, 28, 0.12) 0 1px, transparent 1px 4px) !important;
-  background-color: #E9E7E0 !important;
+  background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0 1px, transparent 1px 4px) !important;
+  background-color: #120C0F !important;
 }
-.mini__heart { position: absolute; left: 79px; top: 79px; width: 3px; height: 3px; background: var(--heart); }
-.mini__view { position: absolute; border: 1.5px solid var(--ink); border-radius: 1px; }
+.mini__heart { position: absolute; left: 78px; top: 78px; width: 4px; height: 4px; border-radius: 1px; background: var(--heart); box-shadow: 0 0 6px var(--heart); }
+.mini__view { position: absolute; border: 1.5px solid #fff; border-radius: 1px; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4); }
 .mini__legend {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -92,5 +88,5 @@ function onClick(e: MouseEvent) {
   color: var(--ink-2);
 }
 .mini__legend span { display: flex; align-items: center; gap: 5px; }
-.mini__legend i { width: 8px; height: 8px; border-radius: 2px; border: 1px solid rgba(24, 23, 28, 0.1); }
+.mini__legend i { width: 8px; height: 8px; border-radius: 2px; border: 1px solid rgba(255, 255, 255, 0.12); }
 </style>

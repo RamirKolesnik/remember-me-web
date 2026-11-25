@@ -7,7 +7,7 @@ import { tierOf } from './tiers.ts'
 const fmt = (n: number) => n.toLocaleString('en-US')
 const spots = (n: number) => `${fmt(n)} ${n === 1 ? 'spot' : 'spots'}`
 
-/** "the center", "the Uncommon ring", "the edge". */
+/** "the center", "the Veins ring", "the edge". */
 export function waveName(w: Pick<Wave, 'n'>): string {
   if (w.n === 1) return 'the center'
   if (w.n === 3) return 'the edge'

@@ -38,8 +38,8 @@ const { status, load, isDemo } = useWall()
   font-weight: 500;
   text-align: center;
 }
-.status__pill--demo, .status__pill--dev { background: var(--amber-soft); color: #633806; }
-.status__pill--wait { background: var(--paper); color: var(--ink-2); border: 1px solid var(--line); }
+.status__pill--demo, .status__pill--dev { background: var(--amber-soft); color: var(--amber-ink); }
+.status__pill--wait { background: var(--panel); color: var(--ink-2); border: 1px solid var(--line); }
 .status__pill--error { background: var(--danger-soft); color: var(--danger); pointer-events: auto; }
 .status__pill--error button {
   margin-left: 6px;

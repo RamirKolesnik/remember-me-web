@@ -9,7 +9,7 @@ import { readMine } from '~/shared/mine'
 const { frames, frameAt, status, load, byId, byNumber } = useWall()
 const api = useApi()
 const route = useRoute()
-const wall = ref<{ zoomBy: (f: number) => void; centerOn: (x: number, y: number, s?: number) => void } | null>(null)
+const wall = ref<{ zoomBy: (f: number) => void; centerOn: (x: number, y: number, s?: number) => void; fitZone: (id: number) => void } | null>(null)
 const selected = ref<WallFrame | null>(null)
 const view = ref<WallView | null>(null)
 const reported = ref<string | null>(null)
@@ -20,6 +20,30 @@ const mine = ref<number[]>([])
 const celebrate = ref<number | null>(null)
 const notice = ref<string | null>(null)
 
+// Widgets: on phones they fold into icons, one open at a time.
+const openWidget = useState<string | null>('wall-widget', () => null)
+const mobile = useMobile()
+const feedBadge = ref(0)
+watch(openWidget, (id) => { if (id === 'feed') feedBadge.value = 0 })
+function onArrived(n: number) {
+  if (mobile.value && openWidget.value !== 'feed') feedBadge.value += n
+}
+
+// A zone hovered in the stats panel lights up on the wall; a click zooms to it.
+const highlightZone = ref<number | null>(null)
+let highlightTimer: ReturnType<typeof setTimeout> | null = null
+function fitZone(id: number) {
+  wall.value?.fitZone(id)
+  if (mobile.value) {
+    // No hover on a phone: close the sheet and keep the zone lit for a moment.
+    openWidget.value = null
+    highlightZone.value = id
+    if (highlightTimer) clearTimeout(highlightTimer)
+    highlightTimer = setTimeout(() => { highlightZone.value = null }, 4000)
+  }
+}
+const heartActive = computed(() => heartOpen.value || (!!selected.value && selected.value.x === HEART.x && selected.value.y === HEART.y))
+
 const { pricing } = usePricing()
 const closed = computed<ClosedZone[]>(() => {
   const p = pricing.value
@@ -27,12 +51,12 @@ const closed = computed<ClosedZone[]>(() => {
   // wall does not look open to the edge for a moment.
   if (!p) return ZONES.filter((z) => z.wave > 1).map((z) => ({
     id: z.id,
-    title: `${tierOf(z.id).body} · ${tierOf(z.id).name} · wave ${z.wave}`,
+    title: `${tierOf(z.id).name} · opens in wave ${z.wave}`,
     detail: '',
   }))
   return p.zones.filter((z) => !z.open).map((z) => ({
     id: z.zone.id,
-    title: `${tierOf(z.zone.id).body} · ${tierOf(z.zone.id).name} · wave ${z.zone.wave}`,
+    title: `${tierOf(z.zone.id).name} · opens in wave ${z.zone.wave}`,
     detail: unlockText(p, z.zone.wave),
   }))
 })
@@ -105,6 +129,7 @@ watch([status, wall, () => route.query.n, () => route.query.frame], ([s, w, n, i
 
 function onSelect(frame: WallFrame | null) {
   selected.value = frame
+  if (frame) openWidget.value = null
   heartOpen.value = false
   reported.value = null
   if (frame?.id !== celebrate.value) notice.value = null
@@ -138,17 +163,23 @@ async function onReport(frame: WallFrame) {
           :closed="closed"
           :mine="mine"
           :celebrate="celebrate"
+          :heart-active="heartActive"
+          :highlight-zone="highlightZone"
           @select="onSelect"
-          @heart="onSelect(null); heartOpen = true"
+          @heart="onSelect(null); heartOpen = true; openWidget = null"
           @view="view = $event"
         />
       </ClientOnly>
 
       <WallStatus />
 
-      <WallSearch class="search" :preview="byNumber" :find="goToNumber" />
+      <WallWidget id="search" class="w-search" label="Find a frame" icon="search" :sheet="false">
+        <WallSearch :preview="byNumber" :find="goToNumber" />
+      </WallWidget>
 
-      <RecentFeed class="feed" @pick="show" />
+      <WallWidget v-if="!mobile" id="feed" class="w-feed" label="Just immortalized" icon="feed">
+        <RecentFeed @pick="show" />
+      </WallWidget>
 
       <div class="controls">
         <button
@@ -174,8 +205,15 @@ async function onReport(frame: WallFrame) {
       </div>
 
       <div class="side">
-        <WallStats />
-        <WallMinimap :view="view" @jump="wall?.centerOn($event.x, $event.y)" />
+        <WallWidget v-if="mobile" id="feed" label="Just immortalized" icon="feed" :badge="feedBadge">
+          <RecentFeed embedded @pick="show($event); openWidget = null" @arrived="onArrived" />
+        </WallWidget>
+        <WallWidget id="stats" label="The wall" icon="stats" framed>
+          <WallStats @highlight="highlightZone = $event" @fit="fitZone" />
+        </WallWidget>
+        <WallWidget id="map" label="Map" icon="map" framed>
+          <WallMinimap :view="view" @jump="wall?.centerOn($event.x, $event.y); openWidget = null" />
+        </WallWidget>
       </div>
 
       <div v-if="heartOpen" class="selected">
@@ -202,7 +240,7 @@ async function onReport(frame: WallFrame) {
   align-items: flex-start;
   gap: 8px;
 }
-.search { position: absolute; top: 12px; left: 16px; z-index: 2; }
+.w-search { position: absolute; top: 12px; left: 16px; z-index: 3; }
 /* The zones switch: a small track that fills with the zone colours when on. */
 .zones { gap: 8px; }
 .zones__track {
@@ -210,7 +248,7 @@ async function onReport(frame: WallFrame) {
   width: 30px;
   height: 18px;
   border-radius: 999px;
-  background: #D3D1C7;
+  background: var(--line-strong);
   transition: background 0.2s;
 }
 .zones__thumb {
@@ -221,23 +259,25 @@ async function onReport(frame: WallFrame) {
   height: 14px;
   border-radius: 50%;
   background: #fff;
-  box-shadow: 0 1px 2px rgba(24, 23, 28, 0.25);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
   transition: transform 0.2s;
 }
 .zones[aria-checked='true'] .zones__track {
-  background: linear-gradient(90deg, #5AAE4F, #4C8BE0, #9B6FE0);
+  background: linear-gradient(90deg, #6F7CFF, #FF5A4E, #FF4D8D);
 }
 .zones[aria-checked='true'] .zones__thumb { transform: translateX(12px); }
 @media (prefers-reduced-motion: reduce) {
   .zones__track, .zones__thumb { transition: none; }
 }
 /* Under the search, above the zones switch and zoom buttons (4 × 44px + gaps). */
-.feed {
+.w-feed {
   position: absolute;
   top: 68px;
   left: 16px;
   max-height: calc(100% - 68px - 240px);
   z-index: 1;
+  display: flex;
+  flex-direction: column;
 }
 .side {
   position: absolute;
@@ -246,6 +286,8 @@ async function onReport(frame: WallFrame) {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  align-items: flex-end;
+  z-index: 1;
 }
 .selected {
   position: absolute;
@@ -261,25 +303,19 @@ async function onReport(frame: WallFrame) {
   margin: 0;
   padding: 8px 12px;
   border-radius: 8px;
-  background: var(--ink);
-  color: #fff;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--ink);
   font-size: 13px;
   max-width: 320px;
 }
 .selected__toast--mine { background: #FFD27A; color: #3A2606; }
 @media (max-width: 720px) {
-  .search { left: 12px; right: 12px; }
-  /* The status pills move below the search bar. */
-  .stage :deep(.status) { top: 64px; }
-  .side { display: none; }
-  /* Stats and minimap are hidden here, so the feed takes their corner. */
-  .feed {
-    top: auto;
-    left: auto;
-    right: 12px;
-    bottom: 16px;
-    max-height: calc(100% - 140px);
-  }
+  .w-search { left: 12px; }
+  /* The status pills move below the search icon. */
+  .stage :deep(.status) { top: 68px; }
+  /* Feed, stats and map fold into icons in the bottom-right corner. */
+  .side { right: 12px; bottom: 16px; }
   .controls__label { display: none; }
   .selected {
     top: auto;

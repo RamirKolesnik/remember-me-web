@@ -56,7 +56,7 @@ async function share() {
       // The picture alone: with extra text, iOS hides "Instagram Stories" from the share sheet.
       await navigator.share({ files: [file.value] })
     } else {
-      await navigator.share({ title: 'remember.me', text: text.value, url: link.value })
+      await navigator.share({ title: 'The Living Wall', text: text.value, url: link.value })
     }
   } catch (err) {
     if ((err as DOMException).name !== 'AbortError') note.value = 'Sharing didn’t work here. Download the picture instead.'
@@ -151,7 +151,7 @@ async function copy() {
   overflow: hidden;
   background: var(--paper);
   border: 1px solid var(--line);
-  box-shadow: 0 12px 32px rgba(24, 23, 28, 0.12);
+  box-shadow: var(--shadow);
 }
 .share__story img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .share__ph {

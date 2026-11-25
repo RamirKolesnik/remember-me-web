@@ -30,7 +30,7 @@ const matchInfo = computed(() => {
   if (!f) return null
   if (isHeart(f.x, f.y, f.size)) return { meta: 'The heart', color: 'var(--heart)' }
   const z = zoneOfFrame(f.x, f.y, f.size)
-  return { meta: `${tierOf(z.id).name} zone`, color: tierOf(z.id).accent }
+  return { meta: `in the ${tierOf(z.id).name}`, color: tierOf(z.id).accent }
 })
 
 const shortcut = ref('Ctrl K')
@@ -119,10 +119,12 @@ function onEscape() {
   display: flex;
   align-items: center;
   height: 44px;
-  background: var(--paper);
+  background: var(--panel);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  box-shadow: 0 4px 12px rgba(24, 23, 28, 0.06);
+  box-shadow: var(--shadow);
 }
 .search__box:focus-within { border-color: var(--accent); }
 .search__icon { position: absolute; left: 12px; color: var(--muted); pointer-events: none; }
@@ -152,10 +154,12 @@ function onEscape() {
 .search__drop {
   margin-top: 6px;
   padding: 6px;
-  background: var(--paper);
+  background: var(--panel);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
   border: 1px solid var(--line);
   border-radius: 12px;
-  box-shadow: 0 12px 32px rgba(24, 23, 28, 0.12);
+  box-shadow: var(--shadow);
 }
 .search__hint { margin: 0; padding: 8px 10px; font-size: 13px; color: var(--muted); }
 .search__hint b { color: var(--ink); font-weight: 600; }
@@ -171,7 +175,7 @@ function onEscape() {
   text-align: left;
   cursor: pointer;
 }
-.search__hit:hover, .search__hit:focus-visible { background: var(--ground); outline: none; }
+.search__hit:hover, .search__hit:focus-visible { background: var(--paper-2); outline: none; }
 .search__hit--plain { padding: 10px; font-size: 14px; font-weight: 500; }
 .search__hit:disabled { cursor: progress; color: var(--muted); }
 .search__avatar {

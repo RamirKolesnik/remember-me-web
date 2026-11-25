@@ -10,11 +10,11 @@ export default defineNuxtConfig({
     baseURL,
     head: {
       htmlAttrs: { lang: 'en' },
-      title: 'remember.me — a wall that remembers',
+      title: 'The Living Wall — every new face is a heartbeat',
       meta: [
         { name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover' },
-        { name: 'description', content: 'Claim a frame on a wall of one million cells. Your photo and a note, kept forever.' },
-        { name: 'theme-color', content: '#F6F5F1' },
+        { name: 'description', content: 'A living wall of one million cells with a beating heart. Put your photo and a note on it, forever.' },
+        { name: 'theme-color', content: '#0B0709' },
       ],
       link: [
         { rel: 'icon', type: 'image/svg+xml', href: `${baseURL}favicon.svg` },

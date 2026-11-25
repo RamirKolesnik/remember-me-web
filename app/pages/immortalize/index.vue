@@ -5,7 +5,7 @@ import { nextStepText } from '~/shared/news'
 import { squarePhoto } from '~/composables/useDraft'
 import { ApiError } from '~/composables/useApi'
 
-useHead({ title: 'Immortalize yourself — remember.me' })
+useHead({ title: 'Immortalize yourself — The Living Wall' })
 
 const draft = useDraft()
 const photoState = ref<'empty' | 'checking' | 'ok' | 'error'>(draft.value.photo ? 'ok' : 'empty')
@@ -219,8 +219,8 @@ const initials = computed(() => draft.value.name.trim().split(/\s+/).map((w) => 
   width: 96px;
   height: 96px;
   border-radius: 10px;
-  background: #C9C3F0;
-  color: #3C3489;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -239,7 +239,7 @@ const initials = computed(() => draft.value.name.trim().split(/\s+/).map((w) => 
   flex-direction: column;
   gap: 4px;
   padding: 12px;
-  border: 1px solid #D3D1C7;
+  border: 1px solid var(--line-strong);
   border-radius: 12px;
   background: var(--paper);
 }
@@ -250,10 +250,10 @@ const initials = computed(() => draft.value.name.trim().split(/\s+/).map((w) => 
 .price__next { font-size: 11px; line-height: 1.35; color: var(--muted); }
 .price--closed {
   background-color: var(--ground);
-  background-image: repeating-linear-gradient(135deg, rgba(24, 23, 28, 0.05) 0 1px, transparent 1px 6px);
+  background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 6px);
 }
 .price--closed .price__swatch { opacity: 0.5; }
-.founders { font-size: 13px; font-weight: 600; color: #C2401E; }
+.founders { font-size: 13px; font-weight: 600; color: var(--heart); }
 .next { align-self: flex-start; }
 .aside { flex: 1 1 300px; display: flex; flex-direction: column; gap: 12px; position: sticky; top: 24px; }
 .aside__label { font-size: 13px; font-weight: 500; color: var(--muted); }
@@ -271,8 +271,8 @@ const initials = computed(() => draft.value.name.trim().split(/\s+/).map((w) => 
   width: 72px;
   height: 72px;
   border-radius: 8px;
-  background: #C9C3F0;
-  color: #3C3489;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -285,7 +285,7 @@ const initials = computed(() => draft.value.name.trim().split(/\s+/).map((w) => 
 .preview__who { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .preview__name { font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
 .preview__meta { font-size: 12px; color: var(--muted); }
-.preview__note { margin: 0; font-size: 14px; line-height: 1.5; color: #2C2C2A; overflow-wrap: anywhere; white-space: pre-line; }
+.preview__note { margin: 0; font-size: 14px; line-height: 1.5; color: var(--ink-2); overflow-wrap: anywhere; white-space: pre-line; }
 @media (max-width: 720px) {
   .main { padding: 24px 16px 48px; gap: 28px; }
   .intro h1 { font-size: 28px; }

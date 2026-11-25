@@ -3,11 +3,21 @@ import { formatShare, wallFill } from '~/shared/stats'
 import { formatUsd } from '~/shared/wall'
 import { tierOf } from '~/shared/tiers'
 import { nextStepText, unlockText } from '~/shared/news'
+import { heartbeatLabel, purchasesLastHour } from '~/shared/heartbeat'
+
+// Hovering a zone lights it on the wall; a click (or tap) zooms to it.
+const emit = defineEmits<{ highlight: [zoneId: number | null]; fit: [zoneId: number] }>()
 
 const { frames } = useWall()
 const { pricing } = usePricing()
 
 const fill = computed(() => wallFill(frames.value))
+// The heart's pace, here too: its own label on the wall shows only on hover.
+const clock = ref(Date.now())
+let tick: ReturnType<typeof setInterval> | null = null
+onMounted(() => { tick = setInterval(() => { clock.value = Date.now() }, 60_000) })
+onBeforeUnmount(() => { if (tick) clearInterval(tick) })
+const pulse = computed(() => heartbeatLabel(purchasesLastHour(frames.value, clock.value)))
 const fmt = (n: number) => n.toLocaleString('en-US')
 // A started bar never looks empty: anything taken gets at least a sliver.
 const width = (taken: number, total: number) => (taken > 0 ? `max(3px, ${(taken / total) * 100}%)` : '0')
@@ -44,10 +54,27 @@ const isHot = (left: number, capacity: number) => left > 0 && left <= capacity /
         <span>{{ fmt(frames.length) }} frames</span>
         <span>{{ fmt(fill.total - fill.taken) }} left</span>
       </p>
+      <p class="stats__pulse">
+        <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 3 4.5 6.7 4.5c2.1 0 3.6 1.1 4.3 2.4h2c.7-1.3 2.2-2.4 4.3-2.4 3.7 0 5.8 3.9 4.3 7.3C19.5 16.4 12 21 12 21z" fill="currentColor" /></svg>
+        {{ pulse }}
+      </p>
     </div>
 
     <ul v-if="pricing" class="stats__zones" aria-label="Prices by zone">
-      <li v-for="z in pricing.zones" :key="z.zone.id" :class="{ 'stats__closed': !z.open }">
+      <li
+        v-for="z in pricing.zones"
+        :key="z.zone.id"
+        class="stats__item"
+        :class="{ 'stats__closed': !z.open }"
+        tabindex="0"
+        :aria-label="`${tierOf(z.zone.id).name}: show on the wall`"
+        @mouseenter="emit('highlight', z.zone.id)"
+        @mouseleave="emit('highlight', null)"
+        @focus="emit('highlight', z.zone.id)"
+        @blur="emit('highlight', null)"
+        @click="emit('fit', z.zone.id)"
+        @keydown.enter.prevent="emit('fit', z.zone.id)"
+      >
         <div class="stats__row">
           <span class="stats__zone"><i :style="{ background: tierOf(z.zone.id).accent }" />{{ tierOf(z.zone.id).name }}</span>
           <b v-if="z.open" class="stats__price">{{ formatUsd(z.priceCents) }}</b>
@@ -61,7 +88,7 @@ const isHot = (left: number, capacity: number) => left > 0 && left <= capacity /
           v-if="z.open"
           class="stats__steps"
           role="progressbar"
-          :aria-label="`${tierOf(z.zone.id).name} zone sold`"
+          :aria-label="`${tierOf(z.zone.id).name} sold`"
           :aria-valuenow="z.sold"
           aria-valuemin="0"
           :aria-valuemax="z.zone.capacity"
@@ -86,11 +113,7 @@ const isHot = (left: number, capacity: number) => left > 0 && left <= capacity /
 
 <style scoped>
 .stats {
-  width: 184px;
-  padding: 12px;
-  background: var(--paper);
-  border: 1px solid var(--line);
-  border-radius: 12px;
+  width: 200px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -117,7 +140,7 @@ const isHot = (left: number, capacity: number) => left > 0 && left <= capacity /
 }
 .stats__bar i { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
 .stats__bar--total { height: 8px; }
-.stats__bar--total i { background: var(--ink); }
+.stats__bar--total i { background: var(--heart); box-shadow: 0 0 8px var(--heart); }
 .stats__zones {
   margin: 0;
   padding: 12px 0 0;
@@ -128,16 +151,20 @@ const isHot = (left: number, capacity: number) => left > 0 && left <= capacity /
   gap: 8px;
 }
 .stats__zones li { display: flex; flex-direction: column; gap: 4px; }
+.stats__item { margin: 0 -6px; padding: 4px 6px; border-radius: 8px; cursor: pointer; transition: background 0.15s; }
+.stats__item:hover, .stats__item:focus-visible { background: var(--line-soft); outline: none; }
+.stats__pulse { margin: 2px 0 0; display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--accent-ink); }
+.stats__pulse svg { color: var(--heart); flex: none; }
 .stats__price { font-size: 12px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
 .stats__lock { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 600; color: var(--muted); }
 .stats__steps { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; }
 .stats__step { height: 4px; border-radius: 999px; background: var(--line-soft); overflow: hidden; }
-.stats__step--now { outline: 1px solid rgba(24, 23, 28, 0.25); outline-offset: 0; }
+.stats__step--now { outline: 1px solid rgba(255, 255, 255, 0.35); outline-offset: 0; }
 .stats__step i { display: block; height: 100%; }
 .stats__next { font-size: 10px; line-height: 1.35; color: var(--muted); }
-.stats__next--hot { color: #C2401E; font-weight: 600; }
+.stats__next--hot { color: var(--heart); font-weight: 600; }
 .stats__closed .stats__zone { opacity: 0.6; }
 .stats__zone { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--ink-2); }
-.stats__zone i { width: 8px; height: 8px; border-radius: 2px; border: 1px solid rgba(24, 23, 28, 0.1); }
+.stats__zone i { width: 8px; height: 8px; border-radius: 2px; border: 1px solid rgba(255, 255, 255, 0.12); }
 .stats__pct { font-size: 11px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
 </style>

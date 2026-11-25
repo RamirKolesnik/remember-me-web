@@ -1,25 +1,23 @@
-// Zone colours, by loot rarity: the edge is common (white), then uncommon
-// (green), rare (blue) and epic (purple) at the center. The heart is the
-// legendary drop and keeps its orange (--heart).
+// The rings of the living wall, from the heart outwards: the heart chambers,
+// the arteries, the veins and the capillaries at the edge. Arteries are
+// scarlet, veins are blue, as in a body; the heart itself is the red one.
 //
-// tint:   wall background, light enough for frames to stay the focus
+// tint:   faint fill of the zone on the dark wall (zones switch)
 // map:    minimap fill
-// accent: legend swatch, progress bar, dashed zone border
-// body:   the ring's name on the living wall, from the heart outwards
+// accent: legend swatch, progress bar, zone border and highlight
 
 export interface Tier {
   name: string
   tint: string
   map: string
   accent: string
-  body: string
 }
 
 export const TIERS: Record<number, Tier> = {
-  1: { name: 'Epic', tint: '#F1EAFC', map: '#D5C3F4', accent: '#9B6FE0', body: 'Heart chamber' },
-  2: { name: 'Rare', tint: '#E9F1FC', map: '#BCD4F5', accent: '#4C8BE0', body: 'Arteries' },
-  3: { name: 'Uncommon', tint: '#EDF6E9', map: '#CBE7BF', accent: '#5AAE4F', body: 'Veins' },
-  4: { name: 'Common', tint: '#FCFBF8', map: '#F7F6F2', accent: '#B4B2A9', body: 'Capillaries' },
+  1: { name: 'Chambers', tint: '#3A0F22', map: '#6A1A3C', accent: '#FF4D8D' },
+  2: { name: 'Arteries', tint: '#3A1210', map: '#6B2420', accent: '#FF5A4E' },
+  3: { name: 'Veins', tint: '#15183A', map: '#2A3170', accent: '#6F7CFF' },
+  4: { name: 'Capillaries', tint: '#1E1519', map: '#3A2A31', accent: '#C7A4B3' },
 }
 
 export const tierOf = (zoneId: number): Tier => TIERS[zoneId] ?? TIERS[4]!
