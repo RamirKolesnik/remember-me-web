@@ -1,12 +1,16 @@
 // Rules of the wall. The backend keeps an identical copy and is the source of
 // truth for prices; the frontend uses this module only to show them.
 
-export const WALL_SIZE = 1000
 /**
- * The heart of the wall: a 4x4 block right at the center (cells 498..501).
+ * 1002x1002 cells: an even side, so the 12x12 heart sits exactly in the
+ * middle, and still over a million frames around it (1,003,860).
+ */
+export const WALL_SIZE = 1002
+/**
+ * The heart of the wall: a 12x12 block right at the center (cells 495..506).
  * One buyer, sold in person rather than on the site, from HEART_PRICE_FROM.
  */
-export const HEART = { x: 498, y: 498, size: 4 } as const
+export const HEART = { x: 495, y: 495, size: 12 } as const
 export const HEART_PRICE_FROM = 10_000
 export const NOTE_MAX = 280
 export const NAME_MAX = 40
@@ -34,11 +38,12 @@ export interface Zone {
   stepsCents: readonly number[]
 }
 
-// Nested squares around the center, most expensive first.
+// Nested squares around the center (100, 300 and 600 cells wide, then the
+// whole wall), most expensive first.
 export const ZONES: readonly Zone[] = [
-  { id: 1, min: 450, max: 549, wave: 1, capacity: 100 * 100 - 16, stepsCents: [2900, 3900, 4900, 6900, 9900] },
-  { id: 2, min: 350, max: 649, wave: 1, capacity: 300 * 300 - 100 * 100, stepsCents: [299, 399, 499, 699, 999] },
-  { id: 3, min: 200, max: 799, wave: 2, capacity: 600 * 600 - 300 * 300, stepsCents: [199, 249, 299, 349, 399] },
+  { id: 1, min: 451, max: 550, wave: 1, capacity: 100 * 100 - 12 * 12, stepsCents: [2900, 3900, 4900, 6900, 9900] },
+  { id: 2, min: 351, max: 650, wave: 1, capacity: 300 * 300 - 100 * 100, stepsCents: [299, 399, 499, 699, 999] },
+  { id: 3, min: 201, max: 800, wave: 2, capacity: 600 * 600 - 300 * 300, stepsCents: [199, 249, 299, 349, 399] },
   { id: 4, min: 0, max: WALL_SIZE - 1, wave: 3, capacity: WALL_SIZE * WALL_SIZE - 600 * 600, stepsCents: [149, 199, 249, 299, 349] },
 ]
 
@@ -152,7 +157,7 @@ export function isHeartCell(x: number, y: number): boolean {
   return overlapsHeart(x, y, 1)
 }
 
-/** The heart frame itself: exactly the 4x4 block. */
+/** The heart frame itself: exactly the 12x12 block. */
 export function isHeart(x: number, y: number, size: number): boolean {
   return x === HEART.x && y === HEART.y && size === HEART.size
 }
