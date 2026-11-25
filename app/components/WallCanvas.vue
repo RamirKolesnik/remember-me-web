@@ -45,8 +45,8 @@ const emit = defineEmits<{
 }>()
 
 const MIN_CELL_PX = 0.6
-// Zoomed all the way in, a cell is a little over its 100% size.
-const MAX_CELL_PX = CELL_PX * 1.2
+// Zoomed all the way in, a cell is three times its 100% size.
+const MAX_CELL_PX = CELL_PX * 3
 
 const wrap = ref<HTMLDivElement | null>(null)
 const canvas = ref<HTMLCanvasElement | null>(null)
@@ -207,7 +207,7 @@ function drawHeart(ctx: CanvasRenderingContext2D, x: number, y: number, size: nu
     ctx.fillStyle = core
     roundRectPath(ctx, x, y, size, size, r)
     ctx.fill()
-    if (size >= 14) {
+    if (size >= 28) {
       const w = size * (0.5 + 0.07 * b)
       heartPath(ctx, x + size / 2, y + size / 2 + size * 0.03, w)
       ctx.fillStyle = '#FF3B52'
@@ -221,6 +221,23 @@ function drawHeart(ctx: CanvasRenderingContext2D, x: number, y: number, size: nu
   roundRectPath(ctx, x, y, size, size, r)
   ctx.stroke()
   ctx.restore()
+
+  // Zoomed out, the block is too small for its icon: a heart marker of a
+  // fixed size stays on top, so the heart can be found at any zoom.
+  if (size < 28) {
+    const w = (20 + 3 * b)
+    ctx.save()
+    ctx.shadowColor = `rgba(255, 50, 80, ${0.6 + 0.3 * b})`
+    ctx.shadowBlur = 14
+    heartPath(ctx, x + size / 2, y + size / 2 + 1, w)
+    ctx.fillStyle = '#FF3B52'
+    ctx.fill()
+    ctx.shadowBlur = 0
+    ctx.lineWidth = 1.5
+    ctx.strokeStyle = 'rgba(255, 220, 226, 0.9)'
+    ctx.stroke()
+    ctx.restore()
+  }
 }
 
 let hatch: CanvasPattern | null = null
