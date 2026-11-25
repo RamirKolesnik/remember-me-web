@@ -76,8 +76,7 @@ function buildDemoFrames(): WallFrame[] {
   const frames: WallFrame[] = []
   const gauss = () => rnd() + rnd() + rnd() - 1.5
   for (let t = 0; t < 12000 && frames.length < 1800; t++) {
-    const r = rnd()
-    const n: FrameSize = r < 0.6 ? 1 : r < 0.9 ? 2 : 3
+    const n: FrameSize = 1
     const spread = rnd() < 0.85 ? 34 : 160
     const x = Math.round(WALL_SIZE / 2 + gauss() * spread)
     const y = Math.round(WALL_SIZE / 2 + gauss() * spread)

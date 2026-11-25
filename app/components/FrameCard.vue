@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { zoneOfFrame } from '~/shared/wall'
+import { tierOf } from '~/shared/tiers'
 import type { WallFrame } from '~/composables/useWall'
 
 const props = defineProps<{ frame: WallFrame }>()
@@ -20,7 +21,7 @@ const number = computed(() => props.frame.number ? `#${props.frame.number.toLoca
       </div>
       <div class="card__who">
         <span class="card__name">{{ frame.name }}</span>
-        <span class="card__meta">{{ number }}{{ frame.size }}×{{ frame.size }} · Zone {{ zone.id }} · {{ frame.placedAt }}</span>
+        <span class="card__meta">{{ number }}{{ tierOf(zone.id).name }} zone · {{ frame.placedAt }}</span>
       </div>
     </div>
     <p class="card__note">{{ frame.note }}</p>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { basePrice, containsLink, FRAME_SIZES, NAME_MAX, NOTE_MAX, type FrameSize } from '~/shared/wall'
+import { containsLink, formatUsd, NAME_MAX, NOTE_MAX, ZONES } from '~/shared/wall'
+import { tierOf } from '~/shared/tiers'
 import { squarePhoto } from '~/composables/useDraft'
 import { ApiError } from '~/composables/useApi'
 
@@ -61,10 +62,6 @@ async function onPhoto(e: Event) {
     const code = err instanceof ApiError ? String(err.body.error ?? '') : ''
     photoError.value = PHOTO_ERRORS[code] ?? "Couldn't upload the photo. Try again."
   }
-}
-
-function pick(size: FrameSize) {
-  draft.value.size = size
 }
 
 function next() {
@@ -140,18 +137,17 @@ const initials = computed(() => draft.value.name.trim().split(/\s+/).map((w) => 
           <span v-else class="field__hint">A quote, a hello, your @handle. Links aren't allowed.</span>
         </div>
 
-        <fieldset class="sizes">
-          <legend class="field__label">Frame size</legend>
-          <div class="sizes__grid">
-            <label v-for="n in FRAME_SIZES" :key="n" class="size" :class="{ 'size--on': draft.size === n }">
-              <input type="radio" name="size" class="sr-only" :value="n" :checked="draft.size === n" @change="pick(n)">
-              <span class="size__swatch" :style="{ width: `${n * 16}px`, height: `${n * 16}px` }" />
-              <span class="size__name">{{ n }}×{{ n }}</span>
-              <span class="size__price">from ${{ basePrice(n) }}</span>
-            </label>
-          </div>
-          <span class="field__hint">The final price depends on the zone — closer to the heart costs more.</span>
-        </fieldset>
+        <div class="field">
+          <span class="field__label">Price</span>
+          <ul class="prices">
+            <li v-for="z in ZONES" :key="z.id" class="price">
+              <i class="price__swatch" :style="{ background: tierOf(z.id).accent }" />
+              <span class="price__name">{{ tierOf(z.id).name }}</span>
+              <span class="price__value">{{ formatUsd(z.priceCents) }}</span>
+            </li>
+          </ul>
+          <span class="field__hint">Every frame is one cell. The price depends on the zone — closer to the heart costs more.</span>
+        </div>
 
         <button type="submit" class="btn btn--lg next" :aria-disabled="!ready">
           Choose your spot
@@ -170,7 +166,7 @@ const initials = computed(() => draft.value.name.trim().split(/\s+/).map((w) => 
             </div>
             <div class="preview__who">
               <span class="preview__name">{{ draft.name || 'Your name' }}</span>
-              <span class="preview__meta">{{ draft.size }}×{{ draft.size }} · zone set in step 2</span>
+              <span class="preview__meta">Zone set in step 2</span>
             </div>
           </div>
           <p class="preview__note">{{ draft.note || 'Your note will appear here.' }}</p>
@@ -222,27 +218,19 @@ const initials = computed(() => draft.value.name.trim().split(/\s+/).map((w) => 
 .photo__preview img, .preview__avatar img { width: 100%; height: 100%; object-fit: cover; }
 .photo__side { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; flex: 1; min-width: 200px; }
 .photo__input { font-size: 13px; color: var(--muted); max-width: 100%; }
-.sizes { margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 10px; }
-.sizes legend { margin-bottom: 10px; }
-.sizes__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-.size {
+.prices { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.price {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 16px;
+  gap: 4px;
+  padding: 12px;
   border: 1px solid #D3D1C7;
   border-radius: 12px;
   background: var(--paper);
-  cursor: pointer;
-  min-height: 132px;
 }
-.size:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
-.size--on { border: 2px solid var(--accent); background: var(--accent-soft); padding: 15px; }
-.size__swatch { background: #CECBF6; border-radius: 2px; }
-.size--on .size__swatch { background: #7F77DD; }
-.size__name { font-size: 15px; font-weight: 600; margin-top: auto; }
-.size__price { font-size: 13px; color: var(--muted); }
-.size--on .size__price { color: var(--accent-ink); }
+.price__swatch { width: 12px; height: 12px; border-radius: 3px; }
+.price__name { font-size: 13px; color: var(--muted); }
+.price__value { font-family: var(--font-display); font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .next { align-self: flex-start; }
 .aside { flex: 1 1 300px; display: flex; flex-direction: column; gap: 12px; position: sticky; top: 24px; }
 .aside__label { font-size: 13px; font-weight: 500; color: var(--muted); }
@@ -278,9 +266,7 @@ const initials = computed(() => draft.value.name.trim().split(/\s+/).map((w) => 
 @media (max-width: 720px) {
   .main { padding: 24px 16px 48px; gap: 28px; }
   .intro h1 { font-size: 28px; }
-  .sizes__grid { gap: 8px; }
-  .size { padding: 12px; min-height: 120px; }
-  .size--on { padding: 11px; }
+  .prices { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .next { align-self: stretch; }
   .aside { position: static; }
 }

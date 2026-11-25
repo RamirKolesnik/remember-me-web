@@ -15,7 +15,7 @@ const heartOpen = ref(false)
 onMounted(() => load())
 
 function show(f: WallFrame) {
-  wall.value?.centerOn(f.x + f.size / 2, f.y + f.size / 2, 24)
+  wall.value?.centerOn(f.x + f.size / 2, f.y + f.size / 2, 48)
   onSelect(f)
 }
 
@@ -97,7 +97,7 @@ async function onReport(frame: WallFrame) {
         <button type="button" class="btn btn--ghost btn--icon" aria-label="Zoom out" @click="wall?.zoomBy(1 / 1.5)">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14" /></svg>
         </button>
-        <button type="button" class="btn btn--ghost" @click="wall?.centerOn(HEART.x + HEART.size / 2, HEART.y + HEART.size / 2, 16)">
+        <button type="button" class="btn btn--ghost" @click="wall?.centerOn(HEART.x + HEART.size / 2, HEART.y + HEART.size / 2, 32)">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M12 2v4M12 18v4M2 12h4M18 12h4" /></svg>
           <span class="controls__label">Back to the heart</span>
         </button>

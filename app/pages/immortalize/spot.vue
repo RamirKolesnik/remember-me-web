@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { basePrice, HEART, placementError, priceOf, zoneOfFrame, type FrameSize } from '~/shared/wall'
+import { formatUsd, FRAME_SIZE, HEART, placementError, priceOf, zoneOfCell } from '~/shared/wall'
+import { tierOf } from '~/shared/tiers'
 import type { Ghost } from '~/components/WallCanvas.vue'
 import { ApiError } from '~/composables/useApi'
 
@@ -9,7 +10,7 @@ const draft = useDraft()
 const api = useApi()
 const route = useRoute()
 const { frames, frameAt, isFree, load } = useWall()
-const size = computed(() => draft.value.size as FrameSize)
+const size = FRAME_SIZE
 
 // The chosen top-left cell.
 const spot = ref<{ x: number; y: number } | null>(null)
@@ -33,28 +34,29 @@ onMounted(() => {
 const problem = computed(() => {
   const p = spot.value
   if (!p) return null
-  const err = placementError(p.x, p.y, size.value)
+  const err = placementError(p.x, p.y)
   if (err === 'out_of_bounds') return 'That spot is off the wall.'
   if (err === 'heart_not_for_sale') return "The heart isn't sold on the site — pick a spot around it."
-  if (!isFree(p.x, p.y, size.value)) return 'Someone is already there — pick a free spot.'
+  if (!isFree(p.x, p.y, size)) return 'Someone is already there — pick a free spot.'
   return null
 })
 
 const ghost = computed<Ghost | null>(() => {
   const p = hover.value ?? spot.value
   if (!p) return null
-  const valid = placementError(p.x, p.y, size.value) === null && isFree(p.x, p.y, size.value)
-  return { x: p.x, y: p.y, size: size.value, valid }
+  const valid = placementError(p.x, p.y) === null && isFree(p.x, p.y, size)
+  return { x: p.x, y: p.y, size, valid }
 })
 
-const zone = computed(() => (spot.value ? zoneOfFrame(spot.value.x, spot.value.y, size.value) : null))
-const price = computed(() => (spot.value && !problem.value ? priceOf(spot.value.x, spot.value.y, size.value) : null))
+const zone = computed(() => (spot.value ? zoneOfCell(spot.value.x, spot.value.y) : null))
+/** In cents. */
+const price = computed(() => (spot.value && !problem.value ? priceOf(spot.value.x, spot.value.y) : null))
 // Cells between the frame and the edge of the heart.
 const distance = computed(() => {
   if (!spot.value) return 0
   const mid = HEART.x + HEART.size / 2
-  const cx = spot.value.x + size.value / 2, cy = spot.value.y + size.value / 2
-  const d = Math.max(Math.abs(cx - mid), Math.abs(cy - mid)) - (HEART.size + size.value) / 2
+  const cx = spot.value.x + size / 2, cy = spot.value.y + size / 2
+  const d = Math.max(Math.abs(cx - mid), Math.abs(cy - mid)) - (HEART.size + size) / 2
   return Math.max(0, Math.floor(d))
 })
 const canReserve = computed(() => price.value !== null && human.value)
@@ -91,7 +93,7 @@ async function reserve() {
   busy.value = true
   try {
     const res = await api.post<{ checkoutUrl: string }>('/reservations', {
-      x: spot.value.x, y: spot.value.y, size: size.value,
+      x: spot.value.x, y: spot.value.y,
       name: draft.value.name.trim(), note: draft.value.note.trim(),
       ...(draft.value.photoKey ? { photoKey: draft.value.photoKey } : {}),
     })
@@ -109,7 +111,7 @@ async function reserve() {
   }
 }
 
-const fmt = (n: number) => `$${n.toLocaleString('en-US')}`
+const fmt = formatUsd
 </script>
 
 <template>
@@ -140,14 +142,13 @@ const fmt = (n: number) => `$${n.toLocaleString('en-US')}`
           <p v-if="!spot" class="muted">Pick a free spot on the wall. The closer to the heart, the more it costs.</p>
           <template v-else>
             <dl class="facts">
-              <dt>Frame</dt><dd>{{ size }}×{{ size }} · {{ size * size }} {{ size === 1 ? 'cell' : 'cells' }}</dd>
-              <dt>Cells</dt><dd>({{ spot.x }}{{ size > 1 ? `–${spot.x + size - 1}` : '' }}, {{ spot.y }}{{ size > 1 ? `–${spot.y + size - 1}` : '' }})</dd>
-              <dt>Zone</dt><dd>Zone {{ zone?.id }} · ×{{ zone?.multiplier }}</dd>
+              <dt>Cell</dt><dd>({{ spot.x }}, {{ spot.y }})</dd>
+              <dt>Zone</dt><dd>{{ zone ? tierOf(zone.id).name : '' }}</dd>
               <dt>To the heart</dt><dd>{{ distance }} {{ distance === 1 ? 'cell' : 'cells' }}</dd>
             </dl>
             <p v-if="problem" class="pill pill--danger problem" role="alert">{{ problem }}</p>
             <div v-else-if="price !== null" class="total">
-              <span class="muted">({{ basePrice(size) - size * size }} + {{ size * size }}) × {{ zone?.multiplier }}</span>
+              <span class="muted">{{ zone ? tierOf(zone.id).name : '' }} spot</span>
               <span class="total__price">{{ fmt(price) }}</span>
             </div>
           </template>

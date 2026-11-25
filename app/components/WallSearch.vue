@@ -30,7 +30,7 @@ const matchInfo = computed(() => {
   if (!f) return null
   if (isHeart(f.x, f.y, f.size)) return { meta: 'The heart', color: 'var(--heart)' }
   const z = zoneOfFrame(f.x, f.y, f.size)
-  return { meta: `${f.size}×${f.size} · Zone ${z.id}`, color: tierOf(z.id).accent }
+  return { meta: `${tierOf(z.id).name} zone`, color: tierOf(z.id).accent }
 })
 
 const shortcut = ref('Ctrl K')

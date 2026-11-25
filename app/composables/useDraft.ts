@@ -1,5 +1,3 @@
-import type { FrameSize } from '~/shared/wall'
-
 export interface Draft {
   name: string
   note: string
@@ -7,7 +5,6 @@ export interface Draft {
   photo: string | null
   /** Key of the uploaded photo on the API (live mode only). */
   photoKey: string | null
-  size: FrameSize
 }
 
 const STORAGE_KEY = 'rm-draft'
@@ -19,13 +16,17 @@ let restored = false
  */
 export function useDraft() {
   const draft = useState<Draft>('draft', () => ({
-    name: '', note: '', photo: null, photoKey: null, size: 2,
+    name: '', note: '', photo: null, photoKey: null,
   }))
   if (import.meta.client && !restored) {
     restored = true
     try {
       const saved = sessionStorage.getItem(STORAGE_KEY)
-      if (saved) draft.value = { ...draft.value, ...JSON.parse(saved) }
+      if (saved) {
+        // Drafts saved before frames became 1x1 still carry a size: drop it.
+        const { size: _size, ...rest } = JSON.parse(saved)
+        draft.value = { ...draft.value, ...rest }
+      }
     } catch { /* storage unavailable: keep the in-memory draft */ }
     watch(draft, (d) => {
       try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(d)) } catch { /* full or blocked */ }
