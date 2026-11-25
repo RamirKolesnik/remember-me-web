@@ -3,7 +3,7 @@ import { fromApi, type ApiFrame, type WallFrame } from '~/composables/useWall'
 import { ApiError } from '~/composables/useApi'
 import { rememberMine } from '~/shared/mine'
 
-useHead({ title: 'You are on the wall — remember.me' })
+useHead({ title: 'You are on the wall — The Living Wall' })
 
 const route = useRoute()
 const api = useApi()

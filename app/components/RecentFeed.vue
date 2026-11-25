@@ -4,7 +4,9 @@ import { newcomers, newestNumber, timeAgo } from '~/shared/recent'
 import { isHeart, zoneOfFrame } from '~/shared/wall'
 import { tierOf } from '~/shared/tiers'
 
-const emit = defineEmits<{ pick: [frame: WallFrame] }>()
+// embedded: inside a phone sheet, which does the folding; no header of its own.
+const props = withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false })
+const emit = defineEmits<{ pick: [frame: WallFrame]; arrived: [count: number] }>()
 
 const LIMIT = 12
 const POLL_MS = 10_000
@@ -31,7 +33,7 @@ const fmt = (n: number) => n.toLocaleString('en-US')
 function metaOf(f: WallFrame) {
   if (isHeart(f.x, f.y, f.size)) return { text: 'The heart', color: 'var(--heart)' }
   const z = zoneOfFrame(f.x, f.y, f.size)
-  return { text: `${tierOf(z.id).name} zone`, color: tierOf(z.id).accent }
+  return { text: `in the ${tierOf(z.id).name}`, color: tierOf(z.id).accent }
 }
 
 /** Takes a fresh list of the newest frames: marks newcomers, puts them on the wall. */
@@ -41,6 +43,7 @@ function take(list: WallFrame[]) {
   if (ids.length) {
     fresh.value = new Set([...fresh.value, ...ids])
     if (collapsed.value) unseen.value += ids.length
+    emit('arrived', ids.length)
     // The highlight fades; the CSS animation runs once per element.
     setTimeout(() => {
       const next = new Set(fresh.value)
@@ -115,7 +118,8 @@ function pick(f: WallFrame) {
 
 onMounted(() => {
   mobile = window.matchMedia('(max-width: 720px)').matches
-  if (mobile) collapsed.value = true
+  if (props.embedded) collapsed.value = false
+  else if (mobile) collapsed.value = true
   else {
     try { collapsed.value = localStorage.getItem(STORAGE_KEY) === '1' } catch { /* private mode */ }
   }
@@ -133,8 +137,9 @@ const stack = computed(() => items.value.slice(0, 3))
 </script>
 
 <template>
-  <section v-if="loaded" class="feed" :class="{ 'feed--collapsed': collapsed }" aria-label="Just immortalized">
+  <section v-if="loaded" class="feed" :class="{ 'feed--collapsed': collapsed, 'feed--embedded': embedded }" aria-label="Just immortalized">
     <button
+      v-if="!embedded"
       type="button"
       class="feed__head"
       :aria-expanded="!collapsed"
@@ -189,13 +194,24 @@ const stack = computed(() => items.value.slice(0, 3))
   display: flex;
   flex-direction: column;
   min-height: 0;
-  background: var(--paper);
+  background: var(--panel);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
   border: 1px solid var(--line);
   border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(24, 23, 28, 0.06);
+  box-shadow: var(--shadow);
   overflow: hidden;
 }
 .feed--collapsed { width: auto; align-self: flex-start; }
+.feed--embedded {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.feed--embedded .feed__body { border-top: 0; }
 .feed__head {
   display: flex;
   align-items: center;
@@ -210,7 +226,7 @@ const stack = computed(() => items.value.slice(0, 3))
 }
 .feed__head:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 12px; }
 .feed__live { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
-.feed__live--on { background: #3B9B4A; box-shadow: 0 0 0 0 rgba(59, 155, 74, 0.5); animation: live 2s infinite; }
+.feed__live--on { background: #FF3B52; box-shadow: 0 0 0 0 rgba(255, 59, 82, 0.5); animation: live 2s infinite; }
 .feed__title { flex: 1; font-size: 13px; font-weight: 600; white-space: nowrap; }
 .feed__stack { display: flex; }
 .feed__mini {
@@ -259,7 +275,7 @@ const stack = computed(() => items.value.slice(0, 3))
   text-align: left;
   cursor: pointer;
 }
-.feed__item:hover, .feed__item:focus-visible { background: var(--ground); outline: none; }
+.feed__item:hover, .feed__item:focus-visible { background: var(--paper-2); outline: none; }
 .feed__item--fresh { animation: fresh 6s ease-out; }
 .feed__avatar {
   width: 36px;
@@ -292,9 +308,9 @@ const stack = computed(() => items.value.slice(0, 3))
   100% { background: transparent; }
 }
 @keyframes live {
-  0% { box-shadow: 0 0 0 0 rgba(59, 155, 74, 0.5); }
-  70% { box-shadow: 0 0 0 6px rgba(59, 155, 74, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(59, 155, 74, 0); }
+  0% { box-shadow: 0 0 0 0 rgba(255, 59, 82, 0.5); }
+  70% { box-shadow: 0 0 0 6px rgba(255, 59, 82, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 59, 82, 0); }
 }
 @media (prefers-reduced-motion: reduce) {
   .feed__live--on, .feed__item--fresh { animation: none; }

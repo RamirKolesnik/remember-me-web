@@ -24,7 +24,7 @@ const number = computed(() => props.frame.number ? `Heartbeat #${props.frame.num
           {{ frame.name }}
           <span v-if="isFounder(frame.number)" class="card__founder" title="One of the first 1,000 frames on the wall">★ Founder</span>
         </span>
-        <span class="card__meta">{{ number }}{{ tierOf(zone.id).name }} zone · {{ frame.placedAt }}</span>
+        <span class="card__meta">{{ number }}in the {{ tierOf(zone.id).name }} · {{ frame.placedAt }}</span>
       </div>
     </div>
     <p class="card__note">{{ frame.note }}</p>
@@ -43,14 +43,16 @@ const number = computed(() => props.frame.number ? `Heartbeat #${props.frame.num
   position: relative;
   width: 320px;
   max-width: 100%;
-  background: var(--paper);
+  background: var(--panel);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  box-shadow: 0 12px 32px rgba(24, 23, 28, 0.12);
+  box-shadow: var(--shadow);
 }
 .card__close { position: absolute; top: 8px; right: 8px; border: 0; }
 .card__top { display: flex; gap: 14px; align-items: center; padding-right: 40px; }
@@ -73,14 +75,14 @@ const number = computed(() => props.frame.number ? `Heartbeat #${props.frame.num
 .card__founder {
   padding: 2px 8px;
   border-radius: 999px;
-  background: #FDEEE6;
-  color: #C2401E;
+  background: var(--heart-soft);
+  color: var(--heart);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.02em;
 }
 .card__meta { font-size: 12px; color: var(--muted); }
-.card__note { margin: 0; font-size: 15px; line-height: 1.5; color: #2C2C2A; overflow-wrap: anywhere; }
+.card__note { margin: 0; font-size: 15px; line-height: 1.5; color: var(--ink-2); overflow-wrap: anywhere; }
 .card__foot {
   display: flex;
   justify-content: space-between;

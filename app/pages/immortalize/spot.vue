@@ -5,7 +5,7 @@ import { nextStepText, unlockText } from '~/shared/news'
 import type { ClosedZone, Ghost } from '~/components/WallCanvas.vue'
 import { ApiError } from '~/composables/useApi'
 
-useHead({ title: 'Choose your spot — remember.me' })
+useHead({ title: 'Choose your spot — The Living Wall' })
 
 const draft = useDraft()
 const api = useApi()
@@ -18,7 +18,7 @@ const closed = computed<ClosedZone[]>(() => {
   if (!p) return []
   return p.zones.filter((z) => !z.open).map((z) => ({
     id: z.zone.id,
-    title: `${tierOf(z.zone.id).body} · ${tierOf(z.zone.id).name} · not on sale yet`,
+    title: `${tierOf(z.zone.id).name} · not on sale yet`,
     detail: unlockText(p, z.zone.wave),
   }))
 })
@@ -238,7 +238,7 @@ const fmt = formatUsd
   border: 1px solid var(--line);
   border-radius: 12px;
   overflow: hidden;
-  background: #FBFAF7;
+  background: var(--paper-2);
 }
 .hint {
   position: absolute;
@@ -283,8 +283,8 @@ const fmt = formatUsd
   color: var(--ink-2);
 }
 .rise svg { flex: none; margin-top: 2px; color: var(--muted); }
-.rise--hot { background: #FDEEE6; color: #8A2E12; }
-.rise--hot svg { color: #C2401E; }
+.rise--hot { background: var(--heart-soft); color: var(--heart); }
+.rise--hot svg { color: var(--heart); }
 .zones { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
 .zone {
   display: grid;
@@ -307,9 +307,9 @@ const fmt = formatUsd
   align-items: center;
   gap: 12px;
   padding: 12px 14px;
-  border: 1px solid #D3D1C7;
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius);
-  background: #FBFAF7;
+  background: var(--paper-2);
   font-size: 14px;
   cursor: pointer;
 }
@@ -323,8 +323,8 @@ const fmt = formatUsd
   padding: 14px 16px;
   border-radius: 12px;
   background: var(--amber-soft);
-  border: 1px solid #FAC775;
-  color: #633806;
+  border: 1px solid var(--amber);
+  color: var(--amber-ink);
   font-size: 13px;
   line-height: 1.5;
 }

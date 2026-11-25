@@ -64,11 +64,12 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
   gap: 10px;
   min-height: 36px;
   padding: 6px 16px;
-  background: var(--ink);
-  color: #fff;
+  background: #140A0E;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
   font-size: 13px;
 }
-.strip__icon { display: inline-flex; color: #FFB86B; flex: none; }
+.strip__icon { display: inline-flex; color: var(--heart); flex: none; }
 .strip__text {
   flex: 1;
   min-width: 0;
@@ -80,9 +81,9 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 }
 .strip__msg { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .strip__dot { width: 8px; height: 8px; border-radius: 2px; flex: none; }
-.strip__count { flex: none; font-size: 11px; color: rgba(255, 255, 255, 0.5); font-variant-numeric: tabular-nums; }
-.strip__cta { flex: none; color: #fff; font-weight: 600; text-decoration: none; }
-.strip__cta:hover { color: #FFB86B; }
+.strip__count { flex: none; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.strip__cta { flex: none; color: var(--accent-ink); font-weight: 600; text-decoration: none; }
+.strip__cta:hover { color: #fff; }
 .strip-enter-active, .strip-leave-active { transition: opacity 0.25s, transform 0.25s; }
 .strip-enter-from { opacity: 0; transform: translateY(6px); }
 .strip-leave-to { opacity: 0; transform: translateY(-6px); }

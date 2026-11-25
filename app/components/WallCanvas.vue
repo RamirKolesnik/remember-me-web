@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CELL_PX, HEART, HEART_PRICE_FROM, isHeartCell, WALL_SIZE, ZONES } from '~/shared/wall'
+import { CELL_PX, HEART, HEART_PRICE_FROM, isHeartCell, WALL_SIZE, ZONES, zoneOfCell } from '~/shared/wall'
 import { tierOf } from '~/shared/tiers'
 import { makeVessels } from '~/shared/vessels'
 import { beatStep, heartbeatLabel, purchasesLastHour } from '~/shared/heartbeat'
@@ -28,7 +28,11 @@ const props = withDefaults(defineProps<{
   mine?: number[]
   /** A frame just bought by this visitor: it gets its own gold heartbeat. */
   celebrate?: number | null
-}>(), { mine: () => [], celebrate: null, selectedId: null, placing: false, ghost: null, ghostSize: 1, initialCellPx: 32, showZones: false, closed: () => [] })
+  /** Show the heart's labels (its card is open, or its owner's frame is selected). */
+  heartActive?: boolean
+  /** A zone to light up on the wall (hovered in the stats panel). */
+  highlightZone?: number | null
+}>(), { heartActive: false, highlightZone: null, mine: () => [], celebrate: null, selectedId: null, placing: false, ghost: null, ghostSize: 1, initialCellPx: 32, showZones: false, closed: () => [] })
 
 const emit = defineEmits<{
   select: [frame: WallFrame | null]
@@ -250,69 +254,61 @@ function openArea() {
 }
 
 /**
- * Labels on the rings that are not on sale yet, saying when each opens,
- * placed in the part of the ring nearest the middle of the screen.
+ * A label on a ring that is not on sale yet, saying when it opens. Shown only
+ * on demand: under the pointer, after a tap, or for the zone lit from the
+ * stats panel.
  */
-function drawClosedLabels(ctx: CanvasRenderingContext2D, sx: (x: number) => number, sy: (y: number) => number) {
-  if (!props.closed.length) return
-  const labels: { x0: number; y0: number; x1: number; y1: number }[] = []
-  for (let i = 0; i < ZONES.length; i++) {
-    const z = ZONES[i]!
-    const info = props.closed.find((c) => c.id === z.id)
-    const inner = ZONES[i - 1]
-    if (!info || !inner) continue
-    const band = inner.min - z.min // ring thickness, in cells
-    if (band * s < 56) continue
-    // The point of the ring closest to the view center, pulled to the middle of the band.
-    let px = cx, py = cy
-    const lo = z.min, hi = z.max + 1, ilo = inner.min, ihi = inner.max + 1
-    px = clamp(px, lo + band / 2, hi - band / 2)
-    py = clamp(py, lo + band / 2, hi - band / 2)
-    if (px > ilo && px < ihi && py > ilo && py < ihi) {
-      const d = [px - ilo, ihi - px, py - ilo, ihi - py]
-      const k = d.indexOf(Math.min(...d))
-      if (k === 0) px = ilo - band / 2
-      else if (k === 1) px = ihi + band / 2
-      else if (k === 2) py = ilo - band / 2
-      else py = ihi + band / 2
-    }
-    const big = Math.round(clamp(band * s * 0.12, 13, 17))
-    ctx.save()
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.font = `600 ${big}px 'Space Grotesk', Inter, sans-serif`
-    const titleW = ctx.measureText(info.title).width
-    ctx.font = `400 ${big - 2}px Inter, sans-serif`
-    const w = Math.max(titleW, ctx.measureText(info.detail).width) + 32
-    const h = big * 2 + 26
-    // Keep the label on screen, but only by moving it within its own band:
-    // a ring whose band is off screen gets no label rather than a stray one.
-    const tx = sx(px), ty = sy(py)
-    // Room at the top and bottom for the search bar, hints and buttons over the wall.
-    const X = clamp(tx, w / 2 + 8, width - w / 2 - 8), Y = clamp(ty, h / 2 + 60, height - h / 2 - 60)
-    const slack = (band * s) / 2
-    const box = { x0: X - w / 2, y0: Y - h / 2, x1: X + w / 2, y1: Y + h / 2 }
-    const overlaps = labels.some((o) => box.x0 < o.x1 && box.x1 > o.x0 && box.y0 < o.y1 && box.y1 > o.y0)
-    if (w > width - 16 || Math.abs(X - tx) > slack || Math.abs(Y - ty) > slack || overlaps) {
-      ctx.restore()
-      continue
-    }
-    labels.push(box)
-    ctx.fillStyle = 'rgba(22, 14, 18, 0.92)'
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)'
-    ctx.lineWidth = 1
-    roundRectPath(ctx, X - w / 2, Y - h / 2, w, h, 10)
-    ctx.fill()
-    ctx.stroke()
-    ctx.fillStyle = '#F3E6E8'
-    ctx.font = `600 ${big}px 'Space Grotesk', Inter, sans-serif`
-    ctx.fillText(info.title, X, Y - big / 2 - 2)
+function drawZoneLabel(ctx: CanvasRenderingContext2D, info: ClosedZone, X: number, Y: number) {
+  const big = 14
+  ctx.save()
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.font = `600 ${big}px 'Space Grotesk', Inter, sans-serif`
+  const titleW = ctx.measureText(info.title).width
+  ctx.font = `400 ${big - 2}px Inter, sans-serif`
+  const w = Math.min(Math.max(titleW, ctx.measureText(info.detail).width) + 32, width - 16)
+  const h = info.detail ? big * 2 + 26 : big + 22
+  X = clamp(X, w / 2 + 8, width - w / 2 - 8)
+  Y = clamp(Y, h / 2 + 8, height - h / 2 - 8)
+  ctx.fillStyle = 'rgba(22, 14, 18, 0.94)'
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)'
+  ctx.lineWidth = 1
+  roundRectPath(ctx, X - w / 2, Y - h / 2, w, h, 10)
+  ctx.fill()
+  ctx.stroke()
+  ctx.fillStyle = '#F3E6E8'
+  ctx.font = `600 ${big}px 'Space Grotesk', Inter, sans-serif`
+  ctx.fillText(info.title, X, info.detail ? Y - big / 2 - 2 : Y)
+  if (info.detail) {
     ctx.fillStyle = '#A89AA0'
     ctx.font = `400 ${big - 2}px Inter, sans-serif`
     ctx.fillText(info.detail, X, Y + big / 2 + 3)
-    ctx.restore()
   }
+  ctx.restore()
 }
+
+/** The point of a ring nearest the middle of the screen, in cells. */
+function ringPointNearView(i: number) {
+  const z = ZONES[i]!, inner = ZONES[i - 1]!
+  const band = inner.min - z.min
+  const lo = z.min, hi = z.max + 1, ilo = inner.min, ihi = inner.max + 1
+  let px = clamp(cx, lo + band / 2, hi - band / 2)
+  let py = clamp(cy, lo + band / 2, hi - band / 2)
+  if (px > ilo && px < ihi && py > ilo && py < ihi) {
+    const d = [px - ilo, ihi - px, py - ilo, ihi - py]
+    const k = d.indexOf(Math.min(...d))
+    if (k === 0) px = ilo - band / 2
+    else if (k === 1) px = ihi + band / 2
+    else if (k === 2) py = ilo - band / 2
+    else py = ihi + band / 2
+  }
+  return { px, py }
+}
+
+// What the pointer is over, for labels shown on hover (desktop) or tap (phones).
+let pointerAt: { x: number; y: number } | null = null
+let heartHover = false
+let zoneTip: { id: number; x: number; y: number; until: number } | null = null
 
 function gridPath(ctx: CanvasRenderingContext2D, sx: (x: number) => number, sy: (y: number) => number,
   x0: number, x1: number, y0: number, y1: number) {
@@ -522,6 +518,22 @@ function draw() {
   ctx.lineWidth = 1
   ctx.strokeRect(sx(0), sy(0), W, W)
 
+  // The zone lit from the stats panel: its ring glows in its colour.
+  if (props.highlightZone) {
+    const i = ZONES.findIndex((z) => z.id === props.highlightZone)
+    if (i >= 0) {
+      const z = ZONES[i]!, inner = ZONES[i - 1]
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(sx(z.min), sy(z.min), (z.max - z.min + 1) * s, (z.max - z.min + 1) * s)
+      if (inner) ctx.rect(sx(inner.min), sy(inner.min), (inner.max - inner.min + 1) * s, (inner.max - inner.min + 1) * s)
+      ctx.globalAlpha = 0.2
+      ctx.fillStyle = tierOf(z.id).accent
+      ctx.fill('evenodd')
+      ctx.restore()
+    }
+  }
+
   // Frames, inset so the seams show around every photo. The pulse lights
   // their rims as it passes; the photos themselves are never tinted.
   const inset = seam / 2
@@ -616,7 +628,8 @@ function draw() {
   const heartTaken = !!props.frameAt(HEART.x, HEART.y)
   const heartVisible = hx + hs > -100 && hy + hs > -100 && hx < width + 100 && hy < height + 100
   if (heartVisible) drawHeart(ctx, hx, hy, hs, heartTaken, b)
-  if (s >= 3) {
+  const heartLabels = heartHover || props.heartActive
+  if (s >= 3 && heartLabels) {
     const label = heartTaken ? 'The heart' : `The heart · from $${HEART_PRICE_FROM.toLocaleString('en-US')}`
     ctx.font = "500 12px Inter, system-ui, sans-serif"
     const tw = ctx.measureText(label).width + 24
@@ -682,7 +695,7 @@ function draw() {
   }
 
   // The heart's pace, under it: how alive the wall is right now.
-  if (s >= 3 && heartVisible) {
+  if (s >= 3 && heartVisible && heartLabels) {
     const label = heartbeatLabel(perHour)
     ctx.save()
     ctx.font = '500 12px Inter, system-ui, sans-serif'
@@ -704,7 +717,36 @@ function draw() {
     ctx.restore()
   }
 
-  drawClosedLabels(ctx, sx, sy)
+  // The zone lit from the stats panel: a bright outline over the photos.
+  const hz = props.highlightZone ? ZONES.findIndex((z) => z.id === props.highlightZone) : -1
+  if (hz >= 0) {
+    const z = ZONES[hz]!, inner = ZONES[hz - 1]
+    const accent = tierOf(z.id).accent
+    ctx.save()
+    ctx.shadowColor = accent
+    ctx.shadowBlur = 12
+    ctx.strokeStyle = accent
+    ctx.lineWidth = 2.5
+    const zw = (z.max - z.min + 1) * s
+    ctx.strokeRect(sx(z.min), sy(z.min), zw, zw)
+    if (inner) ctx.strokeRect(sx(inner.min), sy(inner.min), (inner.max - inner.min + 1) * s, (inner.max - inner.min + 1) * s)
+    ctx.restore()
+  }
+
+  // Closed-ring labels, only on demand.
+  if (zoneTip && now > zoneTip.until) zoneTip = null
+  const tipId = zoneTip?.id ?? null
+  for (const info of props.closed) {
+    if (zoneTip && info.id === tipId) {
+      drawZoneLabel(ctx, info, zoneTip.x, zoneTip.y - 56)
+    } else if (info.id === props.highlightZone) {
+      const i = ZONES.findIndex((z) => z.id === info.id)
+      if (i > 0) {
+        const { px, py } = ringPointNearView(i)
+        drawZoneLabel(ctx, info, sx(px), sy(py))
+      }
+    }
+  }
 
   // Ghost of the frame being placed.
   const g = props.ghost
@@ -729,8 +771,8 @@ function draw() {
     sleepTimer = null
   }
   if (reducedMotion) {
-    if (fresh.size || ceremony) sleepTimer = setTimeout(requestDraw, 1000)
-  } else if (pulses.length || fresh.size || ceremony || (heartVisible && dt < BEAT_SHOW)) {
+    if (fresh.size || ceremony || zoneTip) sleepTimer = setTimeout(requestDraw, 1000)
+  } else if (pulses.length || fresh.size || ceremony || zoneTip || (heartVisible && dt < BEAT_SHOW)) {
     requestDraw()
   } else {
     sleepTimer = setTimeout(requestDraw, Math.max(16, lastBeat + beatEvery * 1000 - now))
@@ -765,7 +807,15 @@ function centerOn(x: number, y: number, cellPx?: number) {
   requestDraw()
 }
 
-defineExpose({ zoomBy, centerOn })
+/** Zoom out (or in) so a whole zone fits on screen, centered on the heart. */
+function fitZone(id: number) {
+  const z = ZONES.find((q) => q.id === id)
+  if (!z) return
+  const size = z.max - z.min + 1
+  centerOn(HEART.x + HEART.size / 2, HEART.y + HEART.size / 2, (Math.min(width, height) * 0.9) / size)
+}
+
+defineExpose({ zoomBy, centerOn, fitZone })
 
 // Pointer input: one pointer pans, two pinch-zoom, a short tap selects.
 const pointers = new Map<number, { x: number; y: number }>()
@@ -811,6 +861,7 @@ function onPointerMove(e: PointerEvent) {
     } else if (canvas.value) {
       const x = Math.floor(fx), y = Math.floor(fy)
       canvas.value.style.cursor = props.frameAt(x, y) || isHeartCell(x, y) ? 'pointer' : 'grab'
+      updateHover(p, x, y)
     }
     return
   }
@@ -852,6 +903,14 @@ function onPointerUp(e: PointerEvent) {
       const frame = props.frameAt(cell.x, cell.y)
       if (!frame && isHeartCell(cell.x, cell.y)) emit('heart')
       else emit('select', frame)
+      if (!frame && e.pointerType !== 'mouse') {
+        const z = zoneOfCell(cell.x, cell.y)
+        const inWall = cell.x >= 0 && cell.y >= 0 && cell.x < WALL_SIZE && cell.y < WALL_SIZE
+        zoneTip = inWall && !isHeartCell(cell.x, cell.y) && props.closed.some((c) => c.id === z.id)
+          ? { id: z.id, x: p.x, y: p.y, until: performance.now() + 4000 }
+          : null
+        requestDraw()
+      }
     }
   }
   if (pointers.size === 1) {
@@ -866,7 +925,26 @@ function onPointerUp(e: PointerEvent) {
   }
 }
 
+/** Hover on a desktop: the heart shows its labels, a closed ring its label. */
+function updateHover(p: { x: number; y: number }, x: number, y: number) {
+  const onHeart = isHeartCell(x, y)
+  const inWall = x >= 0 && y >= 0 && x < WALL_SIZE && y < WALL_SIZE
+  const zone = inWall && !onHeart && !props.frameAt(x, y) ? zoneOfCell(x, y) : null
+  const closedId = zone && props.closed.some((c) => c.id === zone.id) ? zone.id : null
+  const before = `${heartHover}|${zoneTip?.id ?? ''}`
+  heartHover = onHeart
+  zoneTip = closedId ? { id: closedId, x: p.x, y: p.y, until: Infinity } : null
+  pointerAt = p
+  if (closedId || before !== `${heartHover}|${zoneTip?.id ?? ''}`) requestDraw()
+}
+
 function onPointerLeave() {
+  if (pointerAt) {
+    pointerAt = null
+    heartHover = false
+    zoneTip = null
+    requestDraw()
+  }
   if (props.placing && pointers.size === 0) emit('hover', null)
 }
 
@@ -992,7 +1070,7 @@ watch(() => [props.celebrate, props.frames] as const, ([id]) => {
 }, { immediate: true })
 
 watch(
-  () => [props.selectedId, props.placing, props.mine, props.frames, props.showZones, props.closed,
+  () => [props.selectedId, props.placing, props.mine, props.heartActive, props.highlightZone, props.frames, props.showZones, props.closed,
     props.ghost?.x, props.ghost?.y, props.ghost?.size, props.ghost?.valid],
   requestDraw,
 )
