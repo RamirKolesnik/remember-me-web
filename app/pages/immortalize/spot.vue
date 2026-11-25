@@ -166,16 +166,18 @@ const fmt = formatUsd
         <p v-if="cancelled" class="held" role="status">Payment cancelled — the spot is free again. Pick any spot to try again.</p>
         <div class="panel">
           <h1>Your spot</h1>
-          <p v-if="!spot" class="muted">Pick a free spot in the open part of the wall. The closer to the heart, the more it costs.</p>
-          <ul v-if="!spot && pricing" class="zones" aria-label="Prices right now">
-            <li v-for="z in pricing.zones" :key="z.zone.id" class="zone" :class="{ 'zone--closed': !z.open }">
-              <i class="zone__dot" :style="{ background: tierOf(z.zone.id).accent }" aria-hidden="true" />
-              <span class="zone__name">{{ tierOf(z.zone.id).name }}</span>
-              <b v-if="z.open" class="zone__price">{{ fmt(z.priceCents) }}</b>
-              <span v-else class="zone__soon">Wave {{ z.zone.wave }}</span>
-              <span class="zone__next">{{ z.open ? nextStepText(z) : unlockText(pricing, z.zone.wave) }}</span>
-            </li>
-          </ul>
+          <template v-if="!spot">
+            <p class="muted">Pick a free spot in the open part of the wall. The closer to the heart, the more it costs.</p>
+            <ul v-if="pricing" class="zones" aria-label="Prices right now">
+              <li v-for="z in pricing.zones" :key="z.zone.id" class="zone" :class="{ 'zone--closed': !z.open }">
+                <i class="zone__dot" :style="{ background: tierOf(z.zone.id).accent }" aria-hidden="true" />
+                <span class="zone__name">{{ tierOf(z.zone.id).name }}</span>
+                <b v-if="z.open" class="zone__price">{{ fmt(z.priceCents) }}</b>
+                <span v-else class="zone__soon">Wave {{ z.zone.wave }}</span>
+                <span class="zone__next">{{ z.open ? nextStepText(z) : unlockText(pricing, z.zone.wave) }}</span>
+              </li>
+            </ul>
+          </template>
           <template v-else>
             <dl class="facts">
               <dt>Cell</dt><dd>({{ spot.x }}, {{ spot.y }})</dd>
