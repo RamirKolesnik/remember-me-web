@@ -69,8 +69,9 @@ defineProps<{ step?: 1 | 2 | 3 }>()
   .head__heart { animation: none; }
 }
 @media (max-width: 720px) {
-  .head { padding: 8px 12px; }
-  .head__name { font-size: 17px; }
+  .head { padding: 8px 12px; flex-wrap: nowrap; }
+  .head__name { font-size: 16px; white-space: nowrap; }
+  .head__right .btn { min-height: 38px; padding: 0 14px; font-size: 14px; }
   .head__steps { font-size: 12px; }
 }
 </style>

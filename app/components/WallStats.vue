@@ -167,4 +167,7 @@ const isHot = (left: number, capacity: number) => left > 0 && left <= capacity /
 .stats__zone { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--ink-2); }
 .stats__zone i { width: 8px; height: 8px; border-radius: 2px; border: 1px solid rgba(255, 255, 255, 0.12); }
 .stats__pct { font-size: 11px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+@media (max-width: 720px) {
+  .stats { width: auto; }
+}
 </style>
