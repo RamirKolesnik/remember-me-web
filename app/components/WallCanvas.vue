@@ -176,11 +176,6 @@ function drawHeart(ctx: CanvasRenderingContext2D, x: number, y: number, size: nu
       heartPath(ctx, x + size / 2, y + size / 2 + size * 0.03, w)
       ctx.fillStyle = '#FF3B52'
       ctx.fill()
-      // A small highlight, so it reads as a shape and not a stamp.
-      ctx.beginPath()
-      ctx.arc(x + size / 2 - w * 0.2, y + size / 2 - w * 0.12, Math.max(1, w * 0.07), 0, Math.PI * 2)
-      ctx.fillStyle = 'rgba(255, 210, 216, 0.8)'
-      ctx.fill()
     }
   }
 
@@ -378,7 +373,7 @@ function draw() {
   }
 
   // Seams between the cells: faint everywhere, carrying blood where the wall is open.
-  const seam = s >= 6 ? clamp(s * 0.06, 1, 4) : 0
+  const seam = s >= 6 ? clamp(s * 0.04, 1, 3) : 0
   if (seam) {
     ctx.save()
     ctx.lineWidth = seam
@@ -387,9 +382,9 @@ function draw() {
     ctx.stroke()
     clipOpen()
     const blood = ctx.createRadialGradient(hcx, hcy, 0, hcx, hcy, reach * 1.1)
-    blood.addColorStop(0, `rgba(255, 70, 95, ${0.7 + 0.25 * b})`)
-    blood.addColorStop(0.5, 'rgba(220, 50, 75, 0.32)')
-    blood.addColorStop(1, 'rgba(170, 35, 60, 0.12)')
+    blood.addColorStop(0, `rgba(255, 70, 95, ${0.45 + 0.2 * b})`)
+    blood.addColorStop(0.5, 'rgba(220, 50, 75, 0.24)')
+    blood.addColorStop(1, 'rgba(170, 35, 60, 0.1)')
     ctx.strokeStyle = blood
     gridPath(ctx, sx, sy, x0, x1, y0, y1)
     ctx.stroke()
@@ -446,7 +441,7 @@ function draw() {
 
   // Vessels: red and alive in the open part, grey and dashed where the blood
   // has not reached yet.
-  const vw = clamp(s * 0.14, 1.2, 7)
+  const vw = clamp(s * 0.07, 1.2, 4)
   const viewCells = { x0, x1, y0, y1 }
   ctx.save()
   ctx.lineCap = 'round'

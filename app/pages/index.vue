@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { HEART } from '~/shared/wall'
+import { HEART, ZONES } from '~/shared/wall'
 import { fromApi, type ApiFrame, type WallFrame } from '~/composables/useWall'
 import type { ClosedZone, WallView } from '~/components/WallCanvas.vue'
 import { unlockText } from '~/shared/news'
@@ -17,7 +17,13 @@ const heartOpen = ref(false)
 const { pricing } = usePricing()
 const closed = computed<ClosedZone[]>(() => {
   const p = pricing.value
-  if (!p) return []
+  // Until prices arrive, the rings of later waves are shown closed, so the
+  // wall does not look open to the edge for a moment.
+  if (!p) return ZONES.filter((z) => z.wave > 1).map((z) => ({
+    id: z.id,
+    title: `${tierOf(z.id).body} · ${tierOf(z.id).name} · wave ${z.wave}`,
+    detail: '',
+  }))
   return p.zones.filter((z) => !z.open).map((z) => ({
     id: z.zone.id,
     title: `${tierOf(z.zone.id).body} · ${tierOf(z.zone.id).name} · wave ${z.zone.wave}`,
