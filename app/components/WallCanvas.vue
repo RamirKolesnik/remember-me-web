@@ -139,11 +139,19 @@ const MINE_COLOR = '#FFD27A'
 let ceremony: { id: number; at: number } | null = null
 const CEREMONY_MS = 12000
 
-/** How fast a purchase pulse runs out from the heart, in screen px per second. */
-const PULSE_SPEED = 700
+/**
+ * One pulse per new frame bought by someone else: a ring that leaves the
+ * frame itself (x, y in cells), so you see where on the wall it happened.
+ * Several frames in one update go one after another, PULSE_GAP_MS apart,
+ * and the heart answers each with a beat.
+ */
+const PULSE_MS = 1800
+const PULSE_SPEED = 320 // screen px per second
+const PULSE_GAP_MS = 900
+const pulses: { x: number; y: number; at: number; mine: boolean }[] = []
+const beatQueue: number[] = []
 /** How long a new frame stays lit, in ms. */
 const FRESH_MS = 9000
-const pulses: number[] = []
 const fresh = new Map<number, number>()
 
 const VESSELS = makeVessels().map((v) => {
@@ -339,6 +347,7 @@ function draw() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
 
   const now = performance.now()
+  while (beatQueue.length && beatQueue[0]! <= now) lastBeat = beatQueue.shift()!
   if (!reducedMotion && now - lastBeat >= beatEvery * 1000) lastBeat = now
   const dt = (now - lastBeat) / 1000
   const b = reducedMotion ? 0 : beatShape(dt)
@@ -415,34 +424,39 @@ function draw() {
     ctx.restore()
   }
 
-  // Pulses: a soft ring on every heartbeat near the heart, a strong one that
-  // runs across the whole screen for every new frame.
-  const rings: { r: number; a: number }[] = []
+  // Rings: red from the heart on every beat; light pink from every new frame
+  // bought by someone else (gold if it is yours, bought in another tab).
+  const rings: { x: number; y: number; r: number; a: number; rgb: string; w: number }[] = []
   if (!reducedMotion) {
     const near = hcx > -500 && hcy > -500 && hcx < width + 500 && hcy < height + 500
     if (near && dt >= 0 && dt < BEAT_SHOW) {
       const ph = dt / BEAT_SHOW
-      rings.push({ r: ph * 420, a: 0.16 * (1 - ph) })
+      rings.push({ x: hcx, y: hcy, r: ph * 420, a: 0.16 * (1 - ph), rgb: '255, 80, 105', w: 26 })
     }
-    const far = Math.hypot(Math.max(hcx, width - hcx), Math.max(hcy, height - hcy)) + 60
     for (let i = pulses.length - 1; i >= 0; i--) {
-      const r = ((now - pulses[i]!) / 1000) * PULSE_SPEED
-      if (r > far) {
+      const p = pulses[i]!
+      const age = now - p.at
+      if (age < 0) continue
+      if (age > PULSE_MS) {
         pulses.splice(i, 1)
         continue
       }
-      rings.push({ r, a: 0.1 + 0.5 * (1 - r / far) })
+      const k = age / PULSE_MS
+      rings.push({
+        x: sx(p.x), y: sy(p.y), r: Math.max(s / 2, 4) + (age / 1000) * PULSE_SPEED,
+        a: 0.75 * (1 - k), rgb: p.mine ? '255, 210, 122' : '255, 196, 206', w: 4,
+      })
     }
     if (rings.length) {
       ctx.save()
       ctx.beginPath()
       ctx.rect(sx(0), sy(0), W, W)
       ctx.clip()
-      ctx.lineWidth = 26
       for (const ring of rings) {
         ctx.beginPath()
-        ctx.arc(hcx, hcy, Math.max(0, ring.r), 0, Math.PI * 2)
-        ctx.strokeStyle = `rgba(255, 80, 105, ${ring.a})`
+        ctx.arc(ring.x, ring.y, Math.max(0, ring.r), 0, Math.PI * 2)
+        ctx.lineWidth = ring.w
+        ctx.strokeStyle = `rgba(${ring.rgb}, ${ring.a})`
         ctx.stroke()
       }
       ctx.restore()
@@ -538,9 +552,11 @@ function draw() {
       ctx.fillText(f.initials, px + size / 2, py + size / 2 + 1)
     }
     if (rings.length && size >= 6) {
-      const d = Math.hypot(px + size / 2 - hcx, py + size / 2 - hcy)
       let a = 0
-      for (const ring of rings) a = Math.max(a, ring.a * 2.2 * Math.max(0, 1 - Math.abs(d - ring.r) / 22))
+      for (const ring of rings) {
+        const d = Math.hypot(px + size / 2 - ring.x, py + size / 2 - ring.y)
+        a = Math.max(a, Math.min(ring.a * 2.2, 0.9) * Math.max(0, 1 - Math.abs(d - ring.r) / 22))
+      }
       if (a > 0.03) {
         ctx.strokeStyle = `rgba(255, 150, 160, ${Math.min(1, a)})`
         ctx.lineWidth = 2
@@ -554,7 +570,7 @@ function draw() {
       ctx.strokeRect(px - 2, py - 2, size + 4, size + 4)
     }
     const at = fresh.get(f.id)
-    if (at !== undefined) lit.push({ f, k: 1 - (now - at) / FRESH_MS })
+    if (at !== undefined && now >= at) lit.push({ f, k: 1 - (now - at) / FRESH_MS })
   }
   for (const [id, at] of fresh) if (now - at > FRESH_MS) fresh.delete(id)
 
@@ -932,21 +948,26 @@ watch(wallStatus, (st) => {
 watch(() => props.frames, (list) => {
   if (!primed || wallStatus.value !== 'ready') return
   const now = performance.now()
+  const mineSet = new Set(props.mine)
+  // Queue after pulses still waiting, so a busy minute plays out one by one.
+  const incoming = list.filter((f) => !known.has(f.id) && f.number !== null).length
+  // A rush plays faster, so it all fits in about 10 seconds.
+  const gap = incoming > 10 ? Math.max(150, 10_000 / incoming) : PULSE_GAP_MS
+  let at = Math.max(now, ...pulses.map((p) => p.at + gap))
   let added = false
   for (const f of list) {
     if (known.has(f.id)) continue
     known.add(f.id)
     if (f.number === null) continue
-    fresh.set(f.id, now)
+    fresh.set(f.id, at)
+    if (!reducedMotion) {
+      pulses.push({ x: f.x + f.size / 2, y: f.y + f.size / 2, at, mine: mineSet.has(f.id) })
+      beatQueue.push(at)
+    }
+    at += gap
     added = true
   }
-  if (added) {
-    if (!reducedMotion) {
-      pulses.push(now)
-      lastBeat = now
-    }
-    requestDraw()
-  }
+  if (added) requestDraw()
 })
 
 // The pace follows purchases in the last hour; recount as frames arrive and
