@@ -15,7 +15,9 @@ const props = withDefaults(defineProps<{
   ghost?: Ghost | null
   ghostSize?: number
   initialCellPx?: number
-}>(), { selectedId: null, placing: false, ghost: null, ghostSize: 1, initialCellPx: 32 })
+  /** Tint the prestige zones and outline their borders. Off: one plain wall. */
+  showZones?: boolean
+}>(), { selectedId: null, placing: false, ghost: null, ghostSize: 1, initialCellPx: 32, showZones: false })
 
 const emit = defineEmits<{
   select: [frame: WallFrame | null]
@@ -199,10 +201,11 @@ function draw() {
   const sx = (x: number) => (x - cx) * s + width / 2
   const sy = (y: number) => (y - cy) * s + height / 2
 
-  // Outside the wall, then the zones from the edge inwards.
+  // Outside the wall, then the wall: zone by zone from the edge inwards, or
+  // all in the edge colour when zones are hidden.
   ctx.fillStyle = '#E9E7E0'
   ctx.fillRect(0, 0, width, height)
-  for (const z of [...ZONES].reverse()) {
+  for (const z of props.showZones ? [...ZONES].reverse() : ZONES.slice(-1)) {
     ctx.fillStyle = tierOf(z.id).tint
     ctx.fillRect(sx(z.min), sy(z.min), (z.max - z.min + 1) * s, (z.max - z.min + 1) * s)
   }
@@ -228,16 +231,18 @@ function draw() {
   }
 
   // Zone borders, each in its own tier colour.
-  ctx.save()
-  ctx.setLineDash([6, 6])
-  ctx.lineWidth = 1.5
-  ctx.globalAlpha = 0.6
-  for (const z of ZONES) {
-    if (z.id === 4) continue
-    ctx.strokeStyle = tierOf(z.id).accent
-    ctx.strokeRect(sx(z.min), sy(z.min), (z.max - z.min + 1) * s, (z.max - z.min + 1) * s)
+  if (props.showZones) {
+    ctx.save()
+    ctx.setLineDash([6, 6])
+    ctx.lineWidth = 1.5
+    ctx.globalAlpha = 0.6
+    for (const z of ZONES) {
+      if (z.id === 4) continue
+      ctx.strokeStyle = tierOf(z.id).accent
+      ctx.strokeRect(sx(z.min), sy(z.min), (z.max - z.min + 1) * s, (z.max - z.min + 1) * s)
+    }
+    ctx.restore()
   }
-  ctx.restore()
   ctx.strokeStyle = 'rgba(24, 23, 28, 0.25)'
   ctx.lineWidth = 1
   ctx.strokeRect(sx(0), sy(0), WALL_SIZE * s, WALL_SIZE * s)
@@ -512,7 +517,7 @@ onBeforeUnmount(() => {
 })
 
 watch(
-  () => [props.selectedId, props.placing, props.frames,
+  () => [props.selectedId, props.placing, props.frames, props.showZones,
     props.ghost?.x, props.ghost?.y, props.ghost?.size, props.ghost?.valid],
   requestDraw,
 )

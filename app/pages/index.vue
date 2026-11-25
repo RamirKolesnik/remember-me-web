@@ -12,7 +12,18 @@ const view = ref<WallView | null>(null)
 const reported = ref<string | null>(null)
 const heartOpen = ref(false)
 
-onMounted(() => load())
+// Zone tints and borders: hidden by default, the visitor's choice is remembered.
+const ZONES_KEY = 'rm.wall.zones'
+const showZones = ref(false)
+function toggleZones() {
+  showZones.value = !showZones.value
+  try { localStorage.setItem(ZONES_KEY, showZones.value ? '1' : '0') } catch { /* private mode */ }
+}
+
+onMounted(() => {
+  try { showZones.value = localStorage.getItem(ZONES_KEY) === '1' } catch { /* private mode */ }
+  load()
+})
 
 function show(f: WallFrame) {
   wall.value?.centerOn(f.x + f.size / 2, f.y + f.size / 2, 48)
@@ -78,6 +89,7 @@ async function onReport(frame: WallFrame) {
           :frames="frames"
           :frame-at="frameAt"
           :selected-id="selected?.id ?? null"
+          :show-zones="showZones"
           @select="onSelect"
           @heart="onSelect(null); heartOpen = true"
           @view="view = $event"
@@ -91,6 +103,16 @@ async function onReport(frame: WallFrame) {
       <RecentFeed class="feed" @pick="show" />
 
       <div class="controls">
+        <button
+          type="button"
+          class="btn btn--ghost zones"
+          role="switch"
+          :aria-checked="showZones"
+          @click="toggleZones"
+        >
+          <span class="zones__track" aria-hidden="true"><span class="zones__thumb" /></span>
+          <span>Zones</span>
+        </button>
         <button type="button" class="btn btn--ghost btn--icon" aria-label="Zoom in" @click="wall?.zoomBy(1.5)">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
         </button>
@@ -132,12 +154,40 @@ async function onReport(frame: WallFrame) {
   gap: 8px;
 }
 .search { position: absolute; top: 12px; left: 16px; z-index: 2; }
-/* Under the search, above the zoom buttons (3 × 44px + gaps). */
+/* The zones switch: a small track that fills with the zone colours when on. */
+.zones { gap: 8px; }
+.zones__track {
+  position: relative;
+  width: 30px;
+  height: 18px;
+  border-radius: 999px;
+  background: #D3D1C7;
+  transition: background 0.2s;
+}
+.zones__thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(24, 23, 28, 0.25);
+  transition: transform 0.2s;
+}
+.zones[aria-checked='true'] .zones__track {
+  background: linear-gradient(90deg, #5AAE4F, #4C8BE0, #9B6FE0);
+}
+.zones[aria-checked='true'] .zones__thumb { transform: translateX(12px); }
+@media (prefers-reduced-motion: reduce) {
+  .zones__track, .zones__thumb { transition: none; }
+}
+/* Under the search, above the zones switch and zoom buttons (4 × 44px + gaps). */
 .feed {
   position: absolute;
   top: 68px;
   left: 16px;
-  max-height: calc(100% - 68px - 188px);
+  max-height: calc(100% - 68px - 240px);
   z-index: 1;
 }
 .side {

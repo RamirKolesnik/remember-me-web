@@ -124,6 +124,7 @@ const fmt = formatUsd
             :frames="frames"
             :frame-at="frameAt"
             placing
+            show-zones
             :ghost="ghost"
             :ghost-size="size"
             :initial-cell-px="12"
