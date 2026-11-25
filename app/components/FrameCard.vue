@@ -6,7 +6,7 @@ import type { WallFrame } from '~/composables/useWall'
 const props = defineProps<{ frame: WallFrame }>()
 const emit = defineEmits<{ close: []; report: [frame: WallFrame] }>()
 const zone = computed(() => zoneOfFrame(props.frame.x, props.frame.y, props.frame.size))
-const number = computed(() => props.frame.number ? `#${props.frame.number.toLocaleString('en-US')} · ` : '')
+const number = computed(() => props.frame.number ? `Heartbeat #${props.frame.number.toLocaleString('en-US')} · ` : '')
 </script>
 
 <template>

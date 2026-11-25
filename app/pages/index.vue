@@ -20,7 +20,7 @@ const closed = computed<ClosedZone[]>(() => {
   if (!p) return []
   return p.zones.filter((z) => !z.open).map((z) => ({
     id: z.zone.id,
-    title: `${tierOf(z.zone.id).name} · opens in wave ${z.zone.wave}`,
+    title: `${tierOf(z.zone.id).body} · ${tierOf(z.zone.id).name} · wave ${z.zone.wave}`,
     detail: unlockText(p, z.zone.wave),
   }))
 })
@@ -158,7 +158,7 @@ async function onReport(frame: WallFrame) {
 
 <style scoped>
 .page { height: 100dvh; display: flex; flex-direction: column; }
-.stage { position: relative; flex: 1; min-height: 0; }
+.stage { position: relative; flex: 1; min-height: 0; background: #07050A; }
 .controls {
   position: absolute;
   left: 16px;

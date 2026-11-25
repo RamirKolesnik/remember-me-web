@@ -18,7 +18,7 @@ const closed = computed<ClosedZone[]>(() => {
   if (!p) return []
   return p.zones.filter((z) => !z.open).map((z) => ({
     id: z.zone.id,
-    title: `${tierOf(z.zone.id).name} · not on sale yet`,
+    title: `${tierOf(z.zone.id).body} · ${tierOf(z.zone.id).name} · not on sale yet`,
     detail: unlockText(p, z.zone.wave),
   }))
 })
