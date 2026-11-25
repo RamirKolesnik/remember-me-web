@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { containsLink, formatUsd, NAME_MAX, NOTE_MAX, ZONES } from '~/shared/wall'
+import { containsLink, formatUsd, NAME_MAX, NOTE_MAX } from '~/shared/wall'
 import { tierOf } from '~/shared/tiers'
+import { nextStepText } from '~/shared/news'
 import { squarePhoto } from '~/composables/useDraft'
 import { ApiError } from '~/composables/useApi'
 
@@ -24,6 +25,7 @@ const ready = computed(() => photoState.value === 'ok' && (!api.live || !!draft.
 
 const MAX_BYTES = 10 * 1024 * 1024
 const api = useApi()
+const { pricing } = usePricing()
 
 const PHOTO_ERRORS: Record<string, string> = {
   rejected_by_moderation: "This photo didn't pass moderation. Try another one.",
@@ -139,14 +141,27 @@ const initials = computed(() => draft.value.name.trim().split(/\s+/).map((w) => 
 
         <div class="field">
           <span class="field__label">Price</span>
-          <ul class="prices">
-            <li v-for="z in ZONES" :key="z.id" class="price">
-              <i class="price__swatch" :style="{ background: tierOf(z.id).accent }" />
-              <span class="price__name">{{ tierOf(z.id).name }}</span>
-              <span class="price__value">{{ formatUsd(z.priceCents) }}</span>
+          <ul v-if="pricing" class="prices">
+            <li v-for="z in pricing.zones" :key="z.zone.id" class="price" :class="{ 'price--closed': !z.open }">
+              <i class="price__swatch" :style="{ background: tierOf(z.zone.id).accent }" />
+              <span class="price__name">{{ tierOf(z.zone.id).name }}</span>
+              <template v-if="z.open">
+                <span class="price__value">{{ formatUsd(z.priceCents) }}</span>
+                <span class="price__next">{{ nextStepText(z) }}</span>
+              </template>
+              <template v-else>
+                <span class="price__value price__value--soon">Soon</span>
+                <span class="price__next">Opens in wave {{ z.zone.wave }}</span>
+              </template>
             </li>
           </ul>
-          <span class="field__hint">Every frame is one cell. The price depends on the zone — closer to the heart costs more.</span>
+          <span class="field__hint">
+            Every frame is one cell. Closer to the heart costs more, and each zone's price steps up as it fills —
+            the earlier, the cheaper. The wall opens from the center out.
+          </span>
+          <span v-if="pricing && pricing.foundersLeft > 0" class="founders">
+            ★ The first 1,000 frames get a Founder badge · {{ pricing.foundersLeft.toLocaleString('en-US') }} left
+          </span>
         </div>
 
         <button type="submit" class="btn btn--lg next" :aria-disabled="!ready">
@@ -231,6 +246,14 @@ const initials = computed(() => draft.value.name.trim().split(/\s+/).map((w) => 
 .price__swatch { width: 12px; height: 12px; border-radius: 3px; }
 .price__name { font-size: 13px; color: var(--muted); }
 .price__value { font-family: var(--font-display); font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.price__value--soon { color: var(--muted); }
+.price__next { font-size: 11px; line-height: 1.35; color: var(--muted); }
+.price--closed {
+  background-color: var(--ground);
+  background-image: repeating-linear-gradient(135deg, rgba(24, 23, 28, 0.05) 0 1px, transparent 1px 6px);
+}
+.price--closed .price__swatch { opacity: 0.5; }
+.founders { font-size: 13px; font-weight: 600; color: #C2401E; }
 .next { align-self: flex-start; }
 .aside { flex: 1 1 300px; display: flex; flex-direction: column; gap: 12px; position: sticky; top: 24px; }
 .aside__label { font-size: 13px; font-weight: 500; color: var(--muted); }

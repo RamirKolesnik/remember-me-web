@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { formatUsd, FRAME_SIZE, HEART, placementError, priceOf, zoneOfCell } from '~/shared/wall'
+import { formatUsd, FRAME_SIZE, HEART, isOpenCell, placementError, zoneOfCell, zonePrice } from '~/shared/wall'
 import { tierOf } from '~/shared/tiers'
-import type { Ghost } from '~/components/WallCanvas.vue'
+import { nextStepText, unlockText } from '~/shared/news'
+import type { ClosedZone, Ghost } from '~/components/WallCanvas.vue'
 import { ApiError } from '~/composables/useApi'
 
 useHead({ title: 'Choose your spot — remember.me' })
@@ -11,6 +12,17 @@ const api = useApi()
 const route = useRoute()
 const { frames, frameAt, isFree, load } = useWall()
 const size = FRAME_SIZE
+const { pricing, refresh: refreshPricing } = usePricing()
+const closed = computed<ClosedZone[]>(() => {
+  const p = pricing.value
+  if (!p) return []
+  return p.zones.filter((z) => !z.open).map((z) => ({
+    id: z.zone.id,
+    title: `${tierOf(z.zone.id).name} · not on sale yet`,
+    detail: unlockText(p, z.zone.wave),
+  }))
+})
+const openCell = (x: number, y: number) => !pricing.value || isOpenCell(x, y, pricing.value)
 
 // The chosen top-left cell.
 const spot = ref<{ x: number; y: number } | null>(null)
@@ -37,6 +49,10 @@ const problem = computed(() => {
   const err = placementError(p.x, p.y)
   if (err === 'out_of_bounds') return 'That spot is off the wall.'
   if (err === 'heart_not_for_sale') return "The heart isn't sold on the site — pick a spot around it."
+  if (pricing.value && !isOpenCell(p.x, p.y, pricing.value)) {
+    const w = zoneOfCell(p.x, p.y).wave
+    return `This ring isn't on sale yet. ${unlockText(pricing.value, w)}.`
+  }
   if (!isFree(p.x, p.y, size)) return 'Someone is already there — pick a free spot.'
   return null
 })
@@ -44,13 +60,20 @@ const problem = computed(() => {
 const ghost = computed<Ghost | null>(() => {
   const p = hover.value ?? spot.value
   if (!p) return null
-  const valid = placementError(p.x, p.y) === null && isFree(p.x, p.y, size)
+  const valid = placementError(p.x, p.y) === null && openCell(p.x, p.y) && isFree(p.x, p.y, size)
   return { x: p.x, y: p.y, size, valid }
 })
 
 const zone = computed(() => (spot.value ? zoneOfCell(spot.value.x, spot.value.y) : null))
+/** Where the chosen spot's zone stands: price now, next price, how many left. */
+const zoneNow = computed(() => (zone.value && pricing.value ? zonePrice(pricing.value, zone.value.id) : null))
 /** In cents. */
-const price = computed(() => (spot.value && !problem.value ? priceOf(spot.value.x, spot.value.y) : null))
+const price = computed(() => (spot.value && !problem.value && zoneNow.value ? zoneNow.value.priceCents : null))
+/** Close to the next step: under a tenth of a step left. */
+const hot = computed(() => {
+  const z = zoneNow.value
+  return !!z && z.nextPriceCents !== null && z.leftAtPrice <= z.zone.capacity / 50
+})
 // Cells between the frame and the edge of the heart.
 const distance = computed(() => {
   if (!spot.value) return 0
@@ -63,6 +86,7 @@ const canReserve = computed(() => price.value !== null && human.value)
 
 function onPick(cell: { x: number; y: number }) {
   spot.value = cell
+  refreshPricing()
   reserved.value = false
 }
 
@@ -76,6 +100,7 @@ const RESERVE_ERRORS: Record<string, string> = {
   spot_taken: 'Someone just took that spot. Pick another one.',
   out_of_bounds: 'That spot is off the wall.',
   heart_not_for_sale: "The heart isn't sold on the site — pick a spot around it.",
+  zone_closed: "This ring isn't on sale yet — pick a spot in the open part of the wall.",
   links_not_allowed: "Links aren't allowed in the name or note.",
   unknown_photo: 'Your photo expired. Go back and upload it again.',
   captcha_failed: "Captcha check failed. Try again.",
@@ -125,6 +150,7 @@ const fmt = formatUsd
             :frame-at="frameAt"
             placing
             show-zones
+            :closed="closed"
             :ghost="ghost"
             :ghost-size="size"
             :initial-cell-px="12"
@@ -140,7 +166,16 @@ const fmt = formatUsd
         <p v-if="cancelled" class="held" role="status">Payment cancelled — the spot is free again. Pick any spot to try again.</p>
         <div class="panel">
           <h1>Your spot</h1>
-          <p v-if="!spot" class="muted">Pick a free spot on the wall. The closer to the heart, the more it costs.</p>
+          <p v-if="!spot" class="muted">Pick a free spot in the open part of the wall. The closer to the heart, the more it costs.</p>
+          <ul v-if="!spot && pricing" class="zones" aria-label="Prices right now">
+            <li v-for="z in pricing.zones" :key="z.zone.id" class="zone" :class="{ 'zone--closed': !z.open }">
+              <i class="zone__dot" :style="{ background: tierOf(z.zone.id).accent }" aria-hidden="true" />
+              <span class="zone__name">{{ tierOf(z.zone.id).name }}</span>
+              <b v-if="z.open" class="zone__price">{{ fmt(z.priceCents) }}</b>
+              <span v-else class="zone__soon">Wave {{ z.zone.wave }}</span>
+              <span class="zone__next">{{ z.open ? nextStepText(z) : unlockText(pricing, z.zone.wave) }}</span>
+            </li>
+          </ul>
           <template v-else>
             <dl class="facts">
               <dt>Cell</dt><dd>({{ spot.x }}, {{ spot.y }})</dd>
@@ -152,6 +187,14 @@ const fmt = formatUsd
               <span class="muted">{{ zone ? tierOf(zone.id).name : '' }} spot</span>
               <span class="total__price">{{ fmt(price) }}</span>
             </div>
+            <p v-if="!problem && zoneNow" class="rise" :class="{ 'rise--hot': hot }">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 17l6-6 4 4 6-7" /><path d="M14 8h6v6" /></svg>
+              <span>
+                {{ nextStepText(zoneNow) }}.
+                <template v-if="zoneNow.nextPriceCents !== null">Reserve now and this price is yours.</template>
+              </span>
+            </p>
+            <p v-else-if="!problem && !pricing" class="muted small">Loading current prices…</p>
           </template>
 
           <label class="captcha">
@@ -225,6 +268,36 @@ const fmt = formatUsd
 .facts dt { color: var(--muted); }
 .facts dd { margin: 0; font-weight: 500; }
 .problem { margin: 0; align-self: flex-start; font-size: 13px; }
+.rise {
+  margin: 0;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--ground);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+.rise svg { flex: none; margin-top: 2px; color: var(--muted); }
+.rise--hot { background: #FDEEE6; color: #8A2E12; }
+.rise--hot svg { color: #C2401E; }
+.zones { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.zone {
+  display: grid;
+  grid-template-columns: 10px 1fr auto;
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 2px;
+  font-size: 14px;
+}
+.zone__dot { width: 10px; height: 10px; border-radius: 3px; }
+.zone__name { font-weight: 600; }
+.zone__price { font-family: var(--font-display); font-variant-numeric: tabular-nums; }
+.zone__soon { font-size: 12px; font-weight: 600; color: var(--muted); }
+.zone__next { grid-column: 2 / 4; font-size: 12px; color: var(--muted); }
+.zone--closed .zone__name, .zone--closed .zone__dot { opacity: 0.55; }
 .total { display: flex; justify-content: space-between; align-items: baseline; padding-top: 14px; border-top: 1px solid var(--line-soft); }
 .total__price { font-family: var(--font-display); font-size: 32px; font-weight: 600; }
 .captcha {

@@ -6,6 +6,14 @@ import type { WallView } from '~/components/WallCanvas.vue'
 const props = defineProps<{ view: WallView | null }>()
 const emit = defineEmits<{ jump: [cell: { x: number; y: number }] }>()
 
+const { pricing } = usePricing()
+const isClosed = (id: number) => !!pricing.value && !pricing.value.zones[id - 1]!.open
+const legendPrice = (id: number) => {
+  const z = pricing.value?.zones[id - 1]
+  if (!z) return ''
+  return z.open ? formatUsd(z.priceCents) : 'soon'
+}
+
 const SIZE = 160
 const k = SIZE / WALL_SIZE
 
@@ -34,13 +42,14 @@ function onClick(e: MouseEvent) {
         v-for="z in [...ZONES].reverse()"
         :key="z.id"
         class="mini__zone"
+        :class="{ 'mini__zone--closed': isClosed(z.id) }"
         :style="{ left: `${z.min * k}px`, top: `${z.min * k}px`, width: `${(z.max - z.min + 1) * k}px`, height: `${(z.max - z.min + 1) * k}px`, background: tierOf(z.id).map }"
       />
       <span class="mini__heart" />
       <span v-if="viewBox" class="mini__view" :style="viewBox" />
     </button>
     <div class="mini__legend">
-      <span v-for="z in ZONES" :key="z.id"><i :style="{ background: tierOf(z.id).accent }" />{{ tierOf(z.id).name }} {{ formatUsd(z.priceCents) }}</span>
+      <span v-for="z in ZONES" :key="z.id"><i :style="{ background: tierOf(z.id).accent }" />{{ tierOf(z.id).name }} {{ legendPrice(z.id) }}</span>
     </div>
   </div>
 </template>
@@ -68,6 +77,11 @@ function onClick(e: MouseEvent) {
   background: var(--line-soft);
 }
 .mini__zone { position: absolute; border-radius: 2px; }
+/* Not on sale yet: washed out and hatched, like on the wall. */
+.mini__zone--closed {
+  background-image: repeating-linear-gradient(135deg, rgba(24, 23, 28, 0.12) 0 1px, transparent 1px 4px) !important;
+  background-color: #E9E7E0 !important;
+}
 .mini__heart { position: absolute; left: 79px; top: 79px; width: 3px; height: 3px; background: var(--heart); }
 .mini__view { position: absolute; border: 1.5px solid var(--ink); border-radius: 1px; }
 .mini__legend {

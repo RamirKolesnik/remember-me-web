@@ -5,6 +5,8 @@ import type { WallFrame } from '~/composables/useWall'
 
 export interface Ghost { x: number; y: number; size: number; valid: boolean }
 export interface WallView { cx: number; cy: number; w: number; h: number }
+/** A zone that is not on sale yet, with the line that says when it opens. */
+export interface ClosedZone { id: number; title: string; detail: string }
 
 const props = withDefaults(defineProps<{
   frames: WallFrame[]
@@ -17,7 +19,9 @@ const props = withDefaults(defineProps<{
   initialCellPx?: number
   /** Tint the prestige zones and outline their borders. Off: one plain wall. */
   showZones?: boolean
-}>(), { selectedId: null, placing: false, ghost: null, ghostSize: 1, initialCellPx: 32, showZones: false })
+  /** Rings not on sale yet: hatched, fenced off and labelled. */
+  closed?: ClosedZone[]
+}>(), { selectedId: null, placing: false, ghost: null, ghostSize: 1, initialCellPx: 32, showZones: false, closed: () => [] })
 
 const emit = defineEmits<{
   select: [frame: WallFrame | null]
@@ -191,6 +195,105 @@ function drawHeart(ctx: CanvasRenderingContext2D, x: number, y: number, size: nu
   }
 }
 
+let hatch: CanvasPattern | null = null
+function hatchPattern(ctx: CanvasRenderingContext2D): CanvasPattern | null {
+  if (hatch) return hatch
+  const tile = document.createElement('canvas')
+  tile.width = 10
+  tile.height = 10
+  const t = tile.getContext('2d')
+  if (!t) return null
+  t.strokeStyle = 'rgba(24, 23, 28, 0.09)'
+  t.lineWidth = 1.5
+  t.beginPath()
+  t.moveTo(-2, 12); t.lineTo(12, -2)
+  t.moveTo(-2, 2); t.lineTo(2, -2)
+  t.moveTo(8, 12); t.lineTo(12, 8)
+  t.stroke()
+  hatch = ctx.createPattern(tile, 'repeat')
+  return hatch
+}
+
+/**
+ * Rings that are not on sale yet: washed out and hatched, a solid fence
+ * around the part that is open, and a label saying when each ring opens,
+ * placed in the part of the ring nearest the middle of the screen.
+ */
+function drawClosed(ctx: CanvasRenderingContext2D, sx: (x: number) => number, sy: (y: number) => number) {
+  if (!props.closed.length) return
+  const closedIds = new Set(props.closed.map((c) => c.id))
+  let fence: (typeof ZONES)[number] | null = null
+  for (let i = 0; i < ZONES.length; i++) {
+    const z = ZONES[i]!
+    if (!closedIds.has(z.id)) continue
+    const inner = ZONES[i - 1]
+    if (inner && !closedIds.has(inner.id)) fence = inner
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(sx(z.min), sy(z.min), (z.max - z.min + 1) * s, (z.max - z.min + 1) * s)
+    if (inner) ctx.rect(sx(inner.min), sy(inner.min), (inner.max - inner.min + 1) * s, (inner.max - inner.min + 1) * s)
+    ctx.fillStyle = 'rgba(233, 231, 224, 0.75)'
+    ctx.fill('evenodd')
+    const pattern = hatchPattern(ctx)
+    if (pattern) {
+      ctx.fillStyle = pattern
+      ctx.fill('evenodd')
+    }
+    ctx.restore()
+  }
+  if (fence) {
+    ctx.save()
+    ctx.strokeStyle = 'rgba(24, 23, 28, 0.45)'
+    ctx.lineWidth = 2
+    ctx.strokeRect(sx(fence.min), sy(fence.min), (fence.max - fence.min + 1) * s, (fence.max - fence.min + 1) * s)
+    ctx.restore()
+  }
+
+  for (let i = 0; i < ZONES.length; i++) {
+    const z = ZONES[i]!
+    const info = props.closed.find((c) => c.id === z.id)
+    const inner = ZONES[i - 1]
+    if (!info || !inner) continue
+    const band = inner.min - z.min // ring thickness, in cells
+    if (band * s < 56) continue
+    // The point of the ring closest to the view center, pulled to the middle of the band.
+    let px = cx, py = cy
+    const lo = z.min, hi = z.max + 1, ilo = inner.min, ihi = inner.max + 1
+    px = clamp(px, lo + band / 2, hi - band / 2)
+    py = clamp(py, lo + band / 2, hi - band / 2)
+    if (px > ilo && px < ihi && py > ilo && py < ihi) {
+      const d = [px - ilo, ihi - px, py - ilo, ihi - py]
+      const k = d.indexOf(Math.min(...d))
+      if (k === 0) px = ilo - band / 2
+      else if (k === 1) px = ihi + band / 2
+      else if (k === 2) py = ilo - band / 2
+      else py = ihi + band / 2
+    }
+    const X = clamp(sx(px), 140, width - 140), Y = clamp(sy(py), 40, height - 40)
+    if (Y < sy(lo) || Y > sy(hi) || X < sx(lo) || X > sx(hi)) continue
+    const big = Math.round(clamp(band * s * 0.12, 13, 17))
+    ctx.save()
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.font = `600 ${big}px 'Space Grotesk', Inter, sans-serif`
+    const w = Math.max(ctx.measureText(info.title).width, (ctx.font = `400 ${big - 2}px Inter, sans-serif`, ctx.measureText(info.detail).width)) + 32
+    const h = big * 2 + 26
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.92)'
+    ctx.strokeStyle = 'rgba(24, 23, 28, 0.12)'
+    ctx.lineWidth = 1
+    roundRectPath(ctx, X - w / 2, Y - h / 2, w, h, 10)
+    ctx.fill()
+    ctx.stroke()
+    ctx.fillStyle = '#18171C'
+    ctx.font = `600 ${big}px 'Space Grotesk', Inter, sans-serif`
+    ctx.fillText(info.title, X, Y - big / 2 - 2)
+    ctx.fillStyle = '#5F5E5A'
+    ctx.font = `400 ${big - 2}px Inter, sans-serif`
+    ctx.fillText(info.detail, X, Y + big / 2 + 3)
+    ctx.restore()
+  }
+}
+
 function draw() {
   const c = canvas.value
   if (!c) return
@@ -246,6 +349,8 @@ function draw() {
   ctx.strokeStyle = 'rgba(24, 23, 28, 0.25)'
   ctx.lineWidth = 1
   ctx.strokeRect(sx(0), sy(0), WALL_SIZE * s, WALL_SIZE * s)
+
+  drawClosed(ctx, sx, sy)
 
   // Frames.
   const gap = s >= 6 ? 1 : 0
@@ -517,7 +622,7 @@ onBeforeUnmount(() => {
 })
 
 watch(
-  () => [props.selectedId, props.placing, props.frames, props.showZones,
+  () => [props.selectedId, props.placing, props.frames, props.showZones, props.closed,
     props.ghost?.x, props.ghost?.y, props.ghost?.size, props.ghost?.valid],
   requestDraw,
 )

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { zoneOfFrame } from '~/shared/wall'
+import { isFounder, zoneOfFrame } from '~/shared/wall'
 import { tierOf } from '~/shared/tiers'
 import type { WallFrame } from '~/composables/useWall'
 
@@ -20,7 +20,10 @@ const number = computed(() => props.frame.number ? `#${props.frame.number.toLoca
         <template v-else>{{ frame.initials }}</template>
       </div>
       <div class="card__who">
-        <span class="card__name">{{ frame.name }}</span>
+        <span class="card__name">
+          {{ frame.name }}
+          <span v-if="isFounder(frame.number)" class="card__founder" title="One of the first 1,000 frames on the wall">★ Founder</span>
+        </span>
         <span class="card__meta">{{ number }}{{ tierOf(zone.id).name }} zone · {{ frame.placedAt }}</span>
       </div>
     </div>
@@ -66,7 +69,16 @@ const number = computed(() => props.frame.number ? `#${props.frame.number.toLoca
 .card__avatar { overflow: hidden; }
 .card__avatar img { width: 100%; height: 100%; object-fit: cover; }
 .card__who { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.card__name { font-size: 17px; font-weight: 600; }
+.card__name { font-size: 17px; font-weight: 600; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.card__founder {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #FDEEE6;
+  color: #C2401E;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
 .card__meta { font-size: 12px; color: var(--muted); }
 .card__note { margin: 0; font-size: 15px; line-height: 1.5; color: #2C2C2A; overflow-wrap: anywhere; }
 .card__foot {

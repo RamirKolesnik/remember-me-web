@@ -1,8 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  CELL_PX, containsLink, formatUsd, HEART, HEART_PRICE_FROM, isHeart, isHeartCell, overlapsHeart, placementError,
-  priceOf, zoneOfCell, zoneOfFrame,
+  CELL_PX, containsLink, formatUsd, HEART, HEART_PRICE_FROM, isFounder, isHeart, isHeartCell, isOpenCell, NOTHING_SOLD,
+  overlapsHeart, placementError, priceOf, pricing, zoneOfCell, zoneOfFrame, zonePrice, ZONES,
 } from '../app/shared/wall.ts'
 
 test('zones are nested squares around the center', () => {
@@ -14,17 +14,6 @@ test('zones are nested squares around the center', () => {
   assert.equal(zoneOfCell(200, 200).id, 3)
   assert.equal(zoneOfCell(199, 500).id, 4)
   assert.equal(zoneOfCell(0, 999).id, 4)
-})
-
-test('one price per zone, in cents', () => {
-  assert.equal(priceOf(470, 470), 9900) // epic, center
-  assert.equal(priceOf(400, 400), 2499) // rare
-  assert.equal(priceOf(250, 250), 999) // uncommon
-  assert.equal(priceOf(10, 10), 499) // common, edge
-  // Zone borders: the last cell inside and the first outside.
-  assert.equal(priceOf(450, 549), 9900)
-  assert.equal(priceOf(449, 549), 2499)
-  assert.equal(priceOf(199, 500), 499)
 })
 
 test('a cell is 80 px and the heart block sits in the dearest zone', () => {
@@ -72,4 +61,54 @@ test('links are caught, handles are not', () => {
   for (const t of ['Say hi — @aziza.draws', 'Was here. 2026.', 'I love dots...', '@name.me on insta', 'v1.0 forever']) {
     assert.equal(containsLink(t), false, t)
   }
+})
+
+test('zones hold the whole wall, minus the heart', () => {
+  assert.equal(ZONES.reduce((s, z) => s + z.capacity, 0), 1_000_000 - 16)
+  assert.deepEqual(ZONES.map((z) => z.capacity), [9_984, 80_000, 270_000, 640_000])
+})
+
+test('launch: only the center is open, at the first step', () => {
+  const p = pricing(NOTHING_SOLD)
+  assert.deepEqual(p.waves.map((w) => w.open), [true, false, false])
+  assert.deepEqual(p.zones.map((z) => z.open), [true, true, false, false])
+  assert.deepEqual(p.zones.map((z) => z.priceCents), [2900, 299, 199, 149])
+  assert.equal(p.zones[0]!.nextPriceCents, 3900)
+  assert.equal(p.zones[0]!.leftAtPrice, 1997) // a fifth of 9,984, rounded up
+  assert.equal(p.foundersLeft, 1000)
+  assert.equal(priceOf(500, 470, p), 2900)
+  assert.equal(priceOf(400, 400, p), 299)
+  assert.ok(isOpenCell(400, 400, p))
+  assert.ok(!isOpenCell(250, 250, p) && !isOpenCell(10, 10, p))
+})
+
+test('the price steps up each fifth of a zone', () => {
+  const at = (n: number) => zonePrice(pricing({ ...NOTHING_SOLD, 2: n }), 2)
+  assert.equal(at(15_999).priceCents, 299)
+  assert.equal(at(15_999).leftAtPrice, 1)
+  assert.equal(at(16_000).priceCents, 399)
+  assert.equal(at(16_000).leftAtPrice, 16_000)
+  assert.equal(at(64_000).priceCents, 999)
+  assert.equal(at(64_000).nextPriceCents, null)
+  assert.equal(at(64_000).leftAtPrice, 16_000) // last step: what is left of the zone
+  assert.equal(at(80_000).leftAtPrice, 0)
+})
+
+test('waves open from the center out, at half sold', () => {
+  const w1 = Math.ceil((9_984 + 80_000) / 2)
+  assert.equal(pricing({ 1: 9_984, 2: w1 - 9_984 - 1, 3: 0, 4: 0 }).waves[1]!.open, false)
+  const p = pricing({ 1: 9_984, 2: w1 - 9_984, 3: 0, 4: 0 })
+  assert.equal(p.waves[1]!.open, true)
+  assert.equal(p.waves[2]!.open, false)
+  assert.equal(p.waves[1]!.unlockAt, 135_000)
+  assert.equal(pricing({ 1: 9_984, 2: 80_000, 3: 135_000, 4: 0 }).waves[2]!.open, true)
+  // A wave never opens before the one inside it.
+  assert.equal(pricing({ 1: 0, 2: 0, 3: 270_000, 4: 0 }).waves[2]!.open, false)
+})
+
+test('the first 1,000 frames are founders', () => {
+  assert.ok(isFounder(1) && isFounder(1000))
+  assert.ok(!isFounder(1001) && !isFounder(null) && !isFounder(0))
+  assert.equal(pricing({ 1: 300, 2: 500, 3: 0, 4: 0 }).foundersLeft, 200)
+  assert.equal(pricing({ 1: 900, 2: 500, 3: 0, 4: 0 }).foundersLeft, 0)
 })

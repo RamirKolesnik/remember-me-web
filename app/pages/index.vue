@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { HEART } from '~/shared/wall'
 import { fromApi, type ApiFrame, type WallFrame } from '~/composables/useWall'
-import type { WallView } from '~/components/WallCanvas.vue'
+import type { ClosedZone, WallView } from '~/components/WallCanvas.vue'
+import { unlockText } from '~/shared/news'
+import { tierOf } from '~/shared/tiers'
 
 const { frames, frameAt, status, load, byId, byNumber } = useWall()
 const api = useApi()
@@ -11,6 +13,17 @@ const selected = ref<WallFrame | null>(null)
 const view = ref<WallView | null>(null)
 const reported = ref<string | null>(null)
 const heartOpen = ref(false)
+
+const { pricing } = usePricing()
+const closed = computed<ClosedZone[]>(() => {
+  const p = pricing.value
+  if (!p) return []
+  return p.zones.filter((z) => !z.open).map((z) => ({
+    id: z.zone.id,
+    title: `${tierOf(z.zone.id).name} · opens in wave ${z.zone.wave}`,
+    detail: unlockText(p, z.zone.wave),
+  }))
+})
 
 // Zone tints and borders: hidden by default, the visitor's choice is remembered.
 const ZONES_KEY = 'rm.wall.zones'
@@ -82,6 +95,7 @@ async function onReport(frame: WallFrame) {
 <template>
   <div class="page">
     <SiteHeader />
+    <PriceStrip />
     <main class="stage">
       <ClientOnly>
         <WallCanvas
@@ -90,6 +104,7 @@ async function onReport(frame: WallFrame) {
           :frame-at="frameAt"
           :selected-id="selected?.id ?? null"
           :show-zones="showZones"
+          :closed="closed"
           @select="onSelect"
           @heart="onSelect(null); heartOpen = true"
           @view="view = $event"
