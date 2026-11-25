@@ -420,7 +420,7 @@ function draw() {
   const rings: { r: number; a: number }[] = []
   if (!reducedMotion) {
     const near = hcx > -500 && hcy > -500 && hcx < width + 500 && hcy < height + 500
-    if (near && dt < BEAT_SHOW) {
+    if (near && dt >= 0 && dt < BEAT_SHOW) {
       const ph = dt / BEAT_SHOW
       rings.push({ r: ph * 420, a: 0.16 * (1 - ph) })
     }
@@ -441,7 +441,7 @@ function draw() {
       ctx.lineWidth = 26
       for (const ring of rings) {
         ctx.beginPath()
-        ctx.arc(hcx, hcy, ring.r, 0, Math.PI * 2)
+        ctx.arc(hcx, hcy, Math.max(0, ring.r), 0, Math.PI * 2)
         ctx.strokeStyle = `rgba(255, 80, 105, ${ring.a})`
         ctx.stroke()
       }
