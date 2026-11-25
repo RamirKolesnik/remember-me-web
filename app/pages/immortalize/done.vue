@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { fromApi, type ApiFrame, type WallFrame } from '~/composables/useWall'
 import { ApiError } from '~/composables/useApi'
+import { rememberMine } from '~/shared/mine'
 
 useHead({ title: 'You are on the wall — remember.me' })
 
@@ -54,6 +55,8 @@ async function openFrame(id: number, status: unknown) {
   state.value = frame.value ? 'ok' : 'missing'
   if (frame.value) {
     draft.value = { name: '', note: '', photo: null, photoKey: null }
+    // Remember it in this browser, so the wall can mark it "You".
+    rememberMine(frame.value.id)
     // Refresh the wall so "See it on the wall" shows the new frame.
     load(true)
   }
@@ -77,7 +80,7 @@ async function openFrame(id: number, status: unknown) {
         <h1>You're on the wall. Forever.</h1>
         <ShareStory :frame="frame" :story-url="storyUrl" />
         <div class="actions">
-          <NuxtLink :to="frame.number ? `/?n=${frame.number}` : `/?frame=${frame.id}`" class="btn btn--ghost btn--lg">See it on the wall</NuxtLink>
+          <NuxtLink :to="frame.number ? `/?n=${frame.number}&mine=1` : `/?frame=${frame.id}&mine=1`" class="btn btn--ghost btn--lg">See it on the wall</NuxtLink>
           <NuxtLink to="/immortalize" class="btn btn--ghost btn--lg">Add another frame</NuxtLink>
         </div>
       </template>

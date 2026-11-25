@@ -4,6 +4,7 @@ import { fromApi, type ApiFrame, type WallFrame } from '~/composables/useWall'
 import type { ClosedZone, WallView } from '~/components/WallCanvas.vue'
 import { unlockText } from '~/shared/news'
 import { tierOf } from '~/shared/tiers'
+import { readMine } from '~/shared/mine'
 
 const { frames, frameAt, status, load, byId, byNumber } = useWall()
 const api = useApi()
@@ -13,6 +14,11 @@ const selected = ref<WallFrame | null>(null)
 const view = ref<WallView | null>(null)
 const reported = ref<string | null>(null)
 const heartOpen = ref(false)
+// Frames this visitor bought, remembered in the browser, and the one they
+// just bought (back from the payment: /?n=…&mine=1).
+const mine = ref<number[]>([])
+const celebrate = ref<number | null>(null)
+const notice = ref<string | null>(null)
 
 const { pricing } = usePricing()
 const closed = computed<ClosedZone[]>(() => {
@@ -41,6 +47,7 @@ function toggleZones() {
 
 onMounted(() => {
   try { showZones.value = localStorage.getItem(ZONES_KEY) === '1' } catch { /* private mode */ }
+  mine.value = readMine()
   load()
 })
 
@@ -64,7 +71,14 @@ async function goToNumber(n: number): Promise<boolean> {
   }
   if (!f) return false
   show(f)
+  if (route.query.mine === '1') celebrateFrame(f)
   return true
+}
+
+function celebrateFrame(f: WallFrame) {
+  celebrate.value = f.id
+  if (!mine.value.includes(f.id)) mine.value = [...mine.value, f.id]
+  notice.value = 'This is you. The gold rings are your heartbeat; the red ones come from the heart of the wall.'
 }
 
 // /?n=4812 (from /f/4812) and /?frame=123 open the wall on that frame. The
@@ -76,13 +90,17 @@ watch([status, wall, () => route.query.n, () => route.query.frame], ([s, w, n, i
     return
   }
   const f = Number(id) > 0 ? byId(Number(id)) : null
-  if (f) show(f)
+  if (f) {
+    show(f)
+    if (route.query.mine === '1') celebrateFrame(f)
+  }
 }, { immediate: true })
 
 function onSelect(frame: WallFrame | null) {
   selected.value = frame
   heartOpen.value = false
   reported.value = null
+  if (frame?.id !== celebrate.value) notice.value = null
 }
 
 async function onReport(frame: WallFrame) {
@@ -111,6 +129,8 @@ async function onReport(frame: WallFrame) {
           :selected-id="selected?.id ?? null"
           :show-zones="showZones"
           :closed="closed"
+          :mine="mine"
+          :celebrate="celebrate"
           @select="onSelect"
           @heart="onSelect(null); heartOpen = true"
           @view="view = $event"
@@ -157,6 +177,7 @@ async function onReport(frame: WallFrame) {
       <div v-else-if="selected" class="selected">
         <FrameCard :frame="selected" @close="onSelect(null)" @report="onReport" />
         <p v-if="reported" class="selected__toast" role="status">{{ reported }}</p>
+        <p v-else-if="notice" class="selected__toast selected__toast--mine" role="status">{{ notice }}</p>
       </div>
     </main>
   </div>
@@ -229,6 +250,7 @@ async function onReport(frame: WallFrame) {
   align-items: flex-end;
   z-index: 2;
 }
+.selected__toast--mine { background: #FFD27A; color: #3A2606; }
 .selected__toast {
   margin: 0;
   padding: 8px 12px;
@@ -264,6 +286,7 @@ async function onReport(frame: WallFrame) {
     border-radius: 16px 16px 0 0;
     padding-bottom: max(16px, env(safe-area-inset-bottom));
   }
-  .selected__toast { margin: 0 16px 8px; order: -1; }
+  .selected__toast--mine { background: #FFD27A; color: #3A2606; }
+.selected__toast { margin: 0 16px 8px; order: -1; }
 }
 </style>

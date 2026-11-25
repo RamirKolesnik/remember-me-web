@@ -2,6 +2,7 @@
 import { CELL_PX, HEART, HEART_PRICE_FROM, isHeartCell, WALL_SIZE, ZONES } from '~/shared/wall'
 import { tierOf } from '~/shared/tiers'
 import { makeVessels } from '~/shared/vessels'
+import { beatStep, heartbeatLabel, purchasesLastHour } from '~/shared/heartbeat'
 import type { WallFrame } from '~/composables/useWall'
 
 export interface Ghost { x: number; y: number; size: number; valid: boolean }
@@ -22,7 +23,11 @@ const props = withDefaults(defineProps<{
   showZones?: boolean
   /** Rings not on sale yet: hatched, fenced off and labelled. */
   closed?: ClosedZone[]
-}>(), { selectedId: null, placing: false, ghost: null, ghostSize: 1, initialCellPx: 32, showZones: false, closed: () => [] })
+  /** Frames this visitor bought (remembered in the browser): marked "You". */
+  mine?: number[]
+  /** A frame just bought by this visitor: it gets its own gold heartbeat. */
+  celebrate?: number | null
+}>(), { mine: () => [], celebrate: null, selectedId: null, placing: false, ghost: null, ghostSize: 1, initialCellPx: 32, showZones: false, closed: () => [] })
 
 const emit = defineEmits<{
   select: [frame: WallFrame | null]
@@ -108,13 +113,31 @@ const COLORS = {
   fresh: '#FFE2DC',
 }
 
-/** One heartbeat, in seconds: a strong "lub" and a softer "dub". */
-const BEAT = 1.3
-function beatAt(t: number) {
-  const ph = (t % BEAT) / BEAT
-  const g = (c: number, w: number) => Math.exp(-(((ph - c) / w) ** 2))
-  return g(0.05, 0.045) + 0.55 * g(0.24, 0.05)
+/**
+ * The heart beats at a pace set by purchases in the last hour (see
+ * shared/heartbeat.ts): once every 10 s at rest, faster as frames go live.
+ * Every new frame also makes it beat at once.
+ */
+let beatEvery = 10
+let lastBeat = -Infinity
+let perHour = 0
+/** Strength of the beat (0..~1.1) `dt` seconds after it started: "lub", then a softer "dub". */
+function beatShape(dt: number) {
+  const g = (c: number, w: number) => Math.exp(-(((dt - c) / w) ** 2))
+  return g(0.07, 0.06) + 0.55 * g(0.33, 0.07)
 }
+/** How long one beat shows (shape and the ring it sends out), in seconds. */
+const BEAT_SHOW = 1.4
+function countPurchases() {
+  perHour = purchasesLastHour(props.frames, Date.now())
+  beatEvery = beatStep(perHour).every
+}
+let sleepTimer: ReturnType<typeof setTimeout> | null = null
+
+/** The gold heartbeat of a frame this visitor just bought. */
+const MINE_COLOR = '#FFD27A'
+let ceremony: { id: number; at: number } | null = null
+const CEREMONY_MS = 12000
 
 /** How fast a purchase pulse runs out from the heart, in screen px per second. */
 const PULSE_SPEED = 700
@@ -316,8 +339,9 @@ function draw() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
 
   const now = performance.now()
-  const t = reducedMotion ? 0 : now / 1000
-  const b = reducedMotion ? 0 : beatAt(t)
+  if (!reducedMotion && now - lastBeat >= beatEvery * 1000) lastBeat = now
+  const dt = (now - lastBeat) / 1000
+  const b = reducedMotion ? 0 : beatShape(dt)
   const sx = (x: number) => (x - cx) * s + width / 2
   const sy = (y: number) => (y - cy) * s + height / 2
   const W = WALL_SIZE * s
@@ -396,9 +420,9 @@ function draw() {
   const rings: { r: number; a: number }[] = []
   if (!reducedMotion) {
     const near = hcx > -500 && hcy > -500 && hcx < width + 500 && hcy < height + 500
-    if (near) {
-      const ph = (t % BEAT) / BEAT
-      rings.push({ r: ph * 420, a: 0.12 * (1 - ph) })
+    if (near && dt < BEAT_SHOW) {
+      const ph = dt / BEAT_SHOW
+      rings.push({ r: ph * 420, a: 0.16 * (1 - ph) })
     }
     const far = Math.hypot(Math.max(hcx, width - hcx), Math.max(hcy, height - hcy)) + 60
     for (let i = pulses.length - 1; i >= 0; i--) {
@@ -568,6 +592,57 @@ function draw() {
     }
   }
 
+  // Frames this visitor owns: a thin gold rim and, close enough, "You".
+  const mineSet = props.mine.length ? new Set(props.mine) : null
+  if (ceremony && now - ceremony.at > CEREMONY_MS) ceremony = null
+  for (const f of props.frames) {
+    const isMine = mineSet?.has(f.id) || ceremony?.id === f.id
+    if (!isMine) continue
+    if (f.x + f.size < x0 || f.x > x1 || f.y + f.size < y0 || f.y > y1) continue
+    const px = sx(f.x), py = sy(f.y), size = Math.max(f.size * s, 3)
+    const fcx = px + size / 2, fcy = py + size / 2
+    // The ceremony: three gold rings leave the frame itself, clearly not from the heart.
+    if (ceremony?.id === f.id && !reducedMotion) {
+      ctx.save()
+      for (let k = 0; k < 3; k++) {
+        const age = (now - ceremony.at - 400 - k * 1100) / 1000
+        if (age < 0 || age > 1.6) continue
+        const r = Math.max(size / 2, 4) + age * 170
+        ctx.beginPath()
+        ctx.arc(fcx, fcy, r, 0, Math.PI * 2)
+        ctx.strokeStyle = `rgba(255, 210, 122, ${0.85 * (1 - age / 1.6)})`
+        ctx.lineWidth = 3
+        ctx.stroke()
+      }
+      ctx.restore()
+    }
+    ctx.save()
+    ctx.shadowColor = 'rgba(255, 200, 100, 0.8)'
+    ctx.shadowBlur = ceremony?.id === f.id ? 16 : 6
+    ctx.strokeStyle = MINE_COLOR
+    ctx.lineWidth = ceremony?.id === f.id ? 3 : 2
+    roundRectPath(ctx, px - 2, py - 2, size + 4, size + 4, 4)
+    ctx.stroke()
+    ctx.restore()
+    if (s >= 10) {
+      const label = ceremony?.id === f.id && f.number !== null
+        ? `You · Heartbeat #${f.number.toLocaleString('en-US')}`
+        : 'You'
+      ctx.save()
+      ctx.font = '600 12px Inter, system-ui, sans-serif'
+      const tw = ctx.measureText(label).width + 20
+      const lx = fcx - tw / 2, ly = py - 32
+      ctx.fillStyle = MINE_COLOR
+      roundRectPath(ctx, lx, ly, tw, 24, 12)
+      ctx.fill()
+      ctx.fillStyle = '#3A2606'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(label, fcx, ly + 12.5)
+      ctx.restore()
+    }
+  }
+
   // The heart: always beating.
   const hx = sx(HEART.x), hy = sy(HEART.y), hs = Math.max(HEART.size * s, 6)
   const heartTaken = !!props.frameAt(HEART.x, HEART.y)
@@ -585,6 +660,29 @@ function draw() {
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.fillText(label, lx + tw / 2, ly + 13.5)
+  }
+
+  // The heart's pace, under it: how alive the wall is right now.
+  if (s >= 3 && heartVisible) {
+    const label = heartbeatLabel(perHour)
+    ctx.save()
+    ctx.font = '500 12px Inter, system-ui, sans-serif'
+    const tw = ctx.measureText(label).width + 30
+    const lx = hx + hs / 2 - tw / 2, ly = hy + hs + 14
+    ctx.fillStyle = 'rgba(42, 10, 16, 0.9)'
+    roundRectPath(ctx, lx, ly, tw, 24, 12)
+    ctx.fill()
+    ctx.strokeStyle = `rgba(255, 90, 110, ${0.35 + 0.5 * Math.min(1, b)})`
+    ctx.lineWidth = 1
+    ctx.stroke()
+    ctx.fillStyle = '#FF5A6E'
+    heartPath(ctx, lx + 14, ly + 12, 9 + 2 * Math.min(1, b))
+    ctx.fill()
+    ctx.fillStyle = '#F3E6E8'
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(label, lx + 22, ly + 12.5)
+    ctx.restore()
   }
 
   drawClosedLabels(ctx, sx, sy)
@@ -606,9 +704,18 @@ function draw() {
     ctx.strokeRect(gx - 4, gy - 4, gs + 8, gs + 8)
   }
 
-  // Keep it alive while something on screen moves.
-  if (!reducedMotion && (heartVisible || pulses.length || fresh.size)) requestDraw()
-  else if (reducedMotion && fresh.size) setTimeout(requestDraw, 1000)
+  // Keep it alive while something moves; between beats, sleep until the next one.
+  if (sleepTimer) {
+    clearTimeout(sleepTimer)
+    sleepTimer = null
+  }
+  if (reducedMotion) {
+    if (fresh.size || ceremony) sleepTimer = setTimeout(requestDraw, 1000)
+  } else if (pulses.length || fresh.size || ceremony || (heartVisible && dt < BEAT_SHOW)) {
+    requestDraw()
+  } else {
+    sleepTimer = setTimeout(requestDraw, Math.max(16, lastBeat + beatEvery * 1000 - now))
+  }
 
   emit('view', { cx, cy, w: width / s, h: height / s })
 }
@@ -792,6 +899,7 @@ function resize() {
 }
 
 onMounted(() => {
+  recount = setInterval(countPurchases, 60_000)
   observer = new ResizeObserver(resize)
   if (wrap.value) observer.observe(wrap.value)
   canvas.value?.addEventListener('wheel', onWheel, { passive: false })
@@ -801,6 +909,8 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  if (recount) clearInterval(recount)
+  if (sleepTimer) clearTimeout(sleepTimer)
   observer?.disconnect()
   canvas.value?.removeEventListener('wheel', onWheel)
 })
@@ -831,13 +941,32 @@ watch(() => props.frames, (list) => {
     added = true
   }
   if (added) {
-    if (!reducedMotion) pulses.push(now)
+    if (!reducedMotion) {
+      pulses.push(now)
+      lastBeat = now
+    }
     requestDraw()
   }
 })
 
+// The pace follows purchases in the last hour; recount as frames arrive and
+// once a minute, as old purchases drop out of the hour.
+watch(() => props.frames, () => {
+  countPurchases()
+  requestDraw()
+}, { immediate: true })
+let recount: ReturnType<typeof setInterval> | null = null
+
+watch(() => [props.celebrate, props.frames] as const, ([id]) => {
+  if (!id || ceremony?.id === id || !props.frames.some((f) => f.id === id)) return
+  ceremony = { id, at: performance.now() }
+  // The heart answers with a beat of its own.
+  if (!reducedMotion) lastBeat = performance.now() + 300
+  requestDraw()
+}, { immediate: true })
+
 watch(
-  () => [props.selectedId, props.placing, props.frames, props.showZones, props.closed,
+  () => [props.selectedId, props.placing, props.mine, props.frames, props.showZones, props.closed,
     props.ghost?.x, props.ghost?.y, props.ghost?.size, props.ghost?.valid],
   requestDraw,
 )
