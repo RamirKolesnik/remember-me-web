@@ -18,10 +18,10 @@ test('progress never shows a misleading 0% or over 100%', () => {
 
 test('price steps read as a countdown', () => {
   const p = pricing(NOTHING_SOLD)
-  assert.equal(nextStepText(zonePrice(p, 1)), 'Rises to $39 in 1,997 spots')
-  const last = zonePrice(pricing({ ...NOTHING_SOLD, 1: 9_983 }), 1)
+  assert.equal(nextStepText(zonePrice(p, 1)), 'Rises to $39 in 1,972 spots')
+  const last = zonePrice(pricing({ ...NOTHING_SOLD, 1: 9_855 }), 1)
   assert.equal(nextStepText(last), 'Last price · 1 spot left')
-  assert.equal(nextStepText(zonePrice(pricing({ ...NOTHING_SOLD, 1: 9_984 }), 1)), 'Sold out')
+  assert.equal(nextStepText(zonePrice(pricing({ ...NOTHING_SOLD, 1: 9_856 }), 1)), 'Sold out')
 })
 
 test('a closed wave says what opens it', () => {
@@ -33,7 +33,7 @@ test('a closed wave says what opens it', () => {
 test('news at launch: closest price rise first, then founders, then the next wave', () => {
   const news = wallNews(pricing({ ...NOTHING_SOLD, 1: 300 }))
   assert.deepEqual(news.map((n) => n.kind), ['step', 'founders', 'step', 'wave'])
-  assert.equal(news[0]!.text, 'Chambers $29 now · rises to $39 in 1,697 spots')
+  assert.equal(news[0]!.text, 'Chambers $29 now · rises to $39 in 1,672 spots')
   assert.equal(news[1]!.text, 'Founder badge for the first 1,000 frames · 700 left')
   assert.equal(news[3]!.text, 'Next: the Veins ring opens · when the center is half sold · <1% there')
   // No founder line once they are gone.
