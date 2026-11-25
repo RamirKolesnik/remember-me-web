@@ -5,19 +5,21 @@
 // tint:   wall background, light enough for frames to stay the focus
 // map:    minimap fill
 // accent: legend swatch, progress bar, dashed zone border
+// body:   the ring's name on the living wall, from the heart outwards
 
 export interface Tier {
   name: string
   tint: string
   map: string
   accent: string
+  body: string
 }
 
 export const TIERS: Record<number, Tier> = {
-  1: { name: 'Epic', tint: '#F1EAFC', map: '#D5C3F4', accent: '#9B6FE0' },
-  2: { name: 'Rare', tint: '#E9F1FC', map: '#BCD4F5', accent: '#4C8BE0' },
-  3: { name: 'Uncommon', tint: '#EDF6E9', map: '#CBE7BF', accent: '#5AAE4F' },
-  4: { name: 'Common', tint: '#FCFBF8', map: '#F7F6F2', accent: '#B4B2A9' },
+  1: { name: 'Epic', tint: '#F1EAFC', map: '#D5C3F4', accent: '#9B6FE0', body: 'Heart chamber' },
+  2: { name: 'Rare', tint: '#E9F1FC', map: '#BCD4F5', accent: '#4C8BE0', body: 'Arteries' },
+  3: { name: 'Uncommon', tint: '#EDF6E9', map: '#CBE7BF', accent: '#5AAE4F', body: 'Veins' },
+  4: { name: 'Common', tint: '#FCFBF8', map: '#F7F6F2', accent: '#B4B2A9', body: 'Capillaries' },
 }
 
 export const tierOf = (zoneId: number): Tier => TIERS[zoneId] ?? TIERS[4]!

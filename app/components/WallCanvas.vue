@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { CELL_PX, HEART, HEART_PRICE_FROM, isHeartCell, WALL_SIZE, ZONES } from '~/shared/wall'
 import { tierOf } from '~/shared/tiers'
+import { makeVessels } from '~/shared/vessels'
 import type { WallFrame } from '~/composables/useWall'
 
 export interface Ghost { x: number; y: number; size: number; valid: boolean }
@@ -95,14 +96,41 @@ function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: n
   ctx.closePath()
 }
 
-// Users who ask for less motion get a still heart.
+// Users who ask for less motion get a still heart and no pulses.
 const reducedMotion = import.meta.client && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
-/** Tiny deterministic noise for the embers: the same spark always rises the same way. */
-const hash = (n: number) => {
-  const x = Math.sin(n * 127.1) * 43758.5453
-  return x - Math.floor(x)
+// The living wall: a dark body, blood in the seams between the photos, vessels
+// running out from the heart and a pulse on every new frame.
+const COLORS = {
+  outside: '#07050A',
+  wall: '#140B0F',
+  heart: '#E0344B',
+  fresh: '#FFE2DC',
 }
+
+/** One heartbeat, in seconds: a strong "lub" and a softer "dub". */
+const BEAT = 1.3
+function beatAt(t: number) {
+  const ph = (t % BEAT) / BEAT
+  const g = (c: number, w: number) => Math.exp(-(((ph - c) / w) ** 2))
+  return g(0.05, 0.045) + 0.55 * g(0.24, 0.05)
+}
+
+/** How fast a purchase pulse runs out from the heart, in screen px per second. */
+const PULSE_SPEED = 700
+/** How long a new frame stays lit, in ms. */
+const FRESH_MS = 9000
+const pulses: number[] = []
+const fresh = new Map<number, number>()
+
+const VESSELS = makeVessels().map((v) => {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
+  for (let i = 0; i < v.points.length; i += 2) {
+    x0 = Math.min(x0, v.points[i]!); x1 = Math.max(x1, v.points[i]!)
+    y0 = Math.min(y0, v.points[i + 1]!); y1 = Math.max(y1, v.points[i + 1]!)
+  }
+  return { ...v, box: { x0, y0, x1, y1 } }
+})
 
 function heartPath(ctx: CanvasRenderingContext2D, cx: number, cy: number, w: number) {
   const h = w * 0.9
@@ -115,84 +143,53 @@ function heartPath(ctx: CanvasRenderingContext2D, cx: number, cy: number, w: num
 }
 
 /**
- * The legendary heart: molten gold-and-ember gradient that flows across it,
- * a breathing glow and sparks drifting up. Once someone owns it, their photo
- * shows through and the fire stays on the border.
+ * The heart of the wall. It beats (lub-dub) with a red glow. Once someone owns
+ * it, their photo shows through and the beat stays on the border.
  */
-function drawHeart(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, taken: boolean, t: number) {
+function drawHeart(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, taken: boolean, b: number) {
   const r = Math.min(size * 0.08, 8)
-  const pulse = 0.5 + 0.5 * Math.sin(t * 2.2)
 
-  // Glow.
+  // Glow, stronger on each beat.
   ctx.save()
-  ctx.shadowColor = `rgba(240, 128, 40, ${0.45 + 0.3 * pulse})`
-  ctx.shadowBlur = Math.min(Math.max(size * 0.35, 10), 64)
+  ctx.shadowColor = `rgba(255, 50, 80, ${0.4 + 0.45 * b})`
+  ctx.shadowBlur = clamp(size * (0.3 + 0.25 * b), 10, 90)
   roundRectPath(ctx, x, y, size, size, r)
   if (taken) {
-    // The owner's photo is already drawn: glow around it, not over it.
-    ctx.strokeStyle = '#E8762D'
+    ctx.strokeStyle = COLORS.heart
     ctx.lineWidth = 2
     ctx.stroke()
   } else {
-    ctx.fillStyle = '#E8762D'
+    ctx.fillStyle = '#3A0A14'
     ctx.fill()
   }
   ctx.restore()
 
-  // A flowing gradient. Its stops repeat every half, so sliding it by half its
-  // length loops without a seam.
-  const phase = (t * 0.18) % 1
-  const len = size * 4
-  const dx = 0.94, dy = -0.34 // up and to the right, unit length
-  const back = (len / 2) * phase
-  const gx = x - dx * back, gy = y + size - dy * back
-  const flow = ctx.createLinearGradient(gx, gy, gx + dx * len, gy + dy * len)
-  const stops = ['#C2401E', '#F08A2E', '#FFD36B', '#F08A2E', '#C2401E']
-  for (let k = 0; k < 2; k++) {
-    stops.forEach((c, i) => flow.addColorStop(Math.min(1, k * 0.5 + i * 0.125), c))
-  }
-
   if (!taken) {
-    ctx.fillStyle = flow
-    roundRectPath(ctx, x, y, size, size, r)
-    ctx.fill()
-    // Hot core that breathes.
-    const core = ctx.createRadialGradient(x + size / 2, y + size * 0.55, 0, x + size / 2, y + size * 0.55, size * 0.7)
-    core.addColorStop(0, `rgba(255, 244, 200, ${0.35 + 0.35 * pulse})`)
-    core.addColorStop(1, 'rgba(255, 244, 200, 0)')
+    const core = ctx.createRadialGradient(x + size / 2, y + size / 2, 0, x + size / 2, y + size / 2, size * 0.75)
+    core.addColorStop(0, `rgba(255, 70, 95, ${0.35 + 0.35 * b})`)
+    core.addColorStop(1, 'rgba(255, 70, 95, 0)')
     ctx.fillStyle = core
     roundRectPath(ctx, x, y, size, size, r)
     ctx.fill()
-    if (size >= 20) {
-      heartPath(ctx, x + size / 2, y + size / 2 + size * 0.03, size * (0.42 + 0.03 * pulse))
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.92)'
+    if (size >= 14) {
+      const w = size * (0.5 + 0.07 * b)
+      heartPath(ctx, x + size / 2, y + size / 2 + size * 0.03, w)
+      ctx.fillStyle = '#FF3B52'
+      ctx.fill()
+      // A small highlight, so it reads as a shape and not a stamp.
+      ctx.beginPath()
+      ctx.arc(x + size / 2 - w * 0.2, y + size / 2 - w * 0.12, Math.max(1, w * 0.07), 0, Math.PI * 2)
+      ctx.fillStyle = 'rgba(255, 210, 216, 0.8)'
       ctx.fill()
     }
   }
 
-  // Burning border, on the photo too.
   ctx.save()
-  ctx.strokeStyle = flow
-  ctx.lineWidth = Math.max(2, size * (taken ? 0.05 : 0.03))
+  ctx.strokeStyle = `rgba(255, ${74 + Math.round(60 * b)}, ${94 + Math.round(40 * b)}, 1)`
+  ctx.lineWidth = Math.max(2, size * (taken ? 0.05 : 0.035))
   roundRectPath(ctx, x, y, size, size, r)
   ctx.stroke()
   ctx.restore()
-
-  // Embers rising from the heart.
-  if (size >= 24) {
-    const n = 14
-    for (let i = 0; i < n; i++) {
-      const life = 1.6 + hash(i) * 1.6
-      const p = ((t + hash(i + 50) * life) / life) % 1
-      const ex = x + size * (0.1 + 0.8 * hash(i + 100)) + Math.sin(t * 2 + i) * size * 0.04
-      const ey = y + size * 0.35 - p * size * 0.9
-      const er = Math.max(1, size * 0.022) * (1 - p * 0.6)
-      ctx.fillStyle = `rgba(255, ${170 + Math.round(60 * (1 - p))}, 90, ${(1 - p) * 0.85})`
-      ctx.beginPath()
-      ctx.arc(ex, ey, er, 0, Math.PI * 2)
-      ctx.fill()
-    }
-  }
 }
 
 let hatch: CanvasPattern | null = null
@@ -203,7 +200,7 @@ function hatchPattern(ctx: CanvasRenderingContext2D): CanvasPattern | null {
   tile.height = 10
   const t = tile.getContext('2d')
   if (!t) return null
-  t.strokeStyle = 'rgba(24, 23, 28, 0.09)'
+  t.strokeStyle = 'rgba(255, 255, 255, 0.035)'
   t.lineWidth = 1.5
   t.beginPath()
   t.moveTo(-2, 12); t.lineTo(12, -2)
@@ -214,41 +211,23 @@ function hatchPattern(ctx: CanvasRenderingContext2D): CanvasPattern | null {
   return hatch
 }
 
+/** The part of the wall on sale now: the largest zone whose rings are all open. */
+function openArea() {
+  const closedIds = new Set(props.closed.map((c) => c.id))
+  let open = { min: 0, max: WALL_SIZE - 1 }
+  for (const z of ZONES) {
+    if (closedIds.has(z.id)) break
+    open = { min: z.min, max: z.max }
+  }
+  return open
+}
+
 /**
- * Rings that are not on sale yet: washed out and hatched, a solid fence
- * around the part that is open, and a label saying when each ring opens,
+ * Labels on the rings that are not on sale yet, saying when each opens,
  * placed in the part of the ring nearest the middle of the screen.
  */
-function drawClosed(ctx: CanvasRenderingContext2D, sx: (x: number) => number, sy: (y: number) => number) {
+function drawClosedLabels(ctx: CanvasRenderingContext2D, sx: (x: number) => number, sy: (y: number) => number) {
   if (!props.closed.length) return
-  const closedIds = new Set(props.closed.map((c) => c.id))
-  let fence: (typeof ZONES)[number] | null = null
-  for (let i = 0; i < ZONES.length; i++) {
-    const z = ZONES[i]!
-    if (!closedIds.has(z.id)) continue
-    const inner = ZONES[i - 1]
-    if (inner && !closedIds.has(inner.id)) fence = inner
-    ctx.save()
-    ctx.beginPath()
-    ctx.rect(sx(z.min), sy(z.min), (z.max - z.min + 1) * s, (z.max - z.min + 1) * s)
-    if (inner) ctx.rect(sx(inner.min), sy(inner.min), (inner.max - inner.min + 1) * s, (inner.max - inner.min + 1) * s)
-    ctx.fillStyle = 'rgba(233, 231, 224, 0.75)'
-    ctx.fill('evenodd')
-    const pattern = hatchPattern(ctx)
-    if (pattern) {
-      ctx.fillStyle = pattern
-      ctx.fill('evenodd')
-    }
-    ctx.restore()
-  }
-  if (fence) {
-    ctx.save()
-    ctx.strokeStyle = 'rgba(24, 23, 28, 0.45)'
-    ctx.lineWidth = 2
-    ctx.strokeRect(sx(fence.min), sy(fence.min), (fence.max - fence.min + 1) * s, (fence.max - fence.min + 1) * s)
-    ctx.restore()
-  }
-
   const labels: { x0: number; y0: number; x1: number; y1: number }[] = []
   for (let i = 0; i < ZONES.length; i++) {
     const z = ZONES[i]!
@@ -292,21 +271,47 @@ function drawClosed(ctx: CanvasRenderingContext2D, sx: (x: number) => number, sy
       continue
     }
     labels.push(box)
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.92)'
-    ctx.strokeStyle = 'rgba(24, 23, 28, 0.12)'
+    ctx.fillStyle = 'rgba(22, 14, 18, 0.92)'
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)'
     ctx.lineWidth = 1
     roundRectPath(ctx, X - w / 2, Y - h / 2, w, h, 10)
     ctx.fill()
     ctx.stroke()
-    ctx.fillStyle = '#18171C'
+    ctx.fillStyle = '#F3E6E8'
     ctx.font = `600 ${big}px 'Space Grotesk', Inter, sans-serif`
     ctx.fillText(info.title, X, Y - big / 2 - 2)
-    ctx.fillStyle = '#5F5E5A'
+    ctx.fillStyle = '#A89AA0'
     ctx.font = `400 ${big - 2}px Inter, sans-serif`
     ctx.fillText(info.detail, X, Y + big / 2 + 3)
     ctx.restore()
   }
 }
+
+function gridPath(ctx: CanvasRenderingContext2D, sx: (x: number) => number, sy: (y: number) => number,
+  x0: number, x1: number, y0: number, y1: number) {
+  ctx.beginPath()
+  for (let x = x0; x <= x1; x++) {
+    const px = sx(x)
+    ctx.moveTo(px, sy(y0)); ctx.lineTo(px, sy(y1))
+  }
+  for (let y = y0; y <= y1; y++) {
+    const py = sy(y)
+    ctx.moveTo(sx(x0), py); ctx.lineTo(sx(x1), py)
+  }
+}
+
+function vesselsPath(ctx: CanvasRenderingContext2D, sx: (x: number) => number, sy: (y: number) => number,
+  width: number, view: { x0: number; x1: number; y0: number; y1: number }) {
+  ctx.beginPath()
+  for (const v of VESSELS) {
+    if (Math.abs(v.width - width) > 1e-9) continue
+    const b = v.box
+    if (b.x1 < view.x0 || b.x0 > view.x1 || b.y1 < view.y0 || b.y0 > view.y1) continue
+    ctx.moveTo(sx(v.points[0]!), sy(v.points[1]!))
+    for (let i = 2; i < v.points.length; i += 2) ctx.lineTo(sx(v.points[i]!), sy(v.points[i + 1]!))
+  }
+}
+const VESSEL_WIDTHS = [...new Set(VESSELS.map((v) => v.width))]
 
 function draw() {
   const c = canvas.value
@@ -315,78 +320,196 @@ function draw() {
   if (!ctx) return
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
 
+  const now = performance.now()
+  const t = reducedMotion ? 0 : now / 1000
+  const b = reducedMotion ? 0 : beatAt(t)
   const sx = (x: number) => (x - cx) * s + width / 2
   const sy = (y: number) => (y - cy) * s + height / 2
+  const W = WALL_SIZE * s
 
-  // Outside the wall, then the wall: zone by zone from the edge inwards, or
-  // all in the edge colour when zones are hidden.
-  ctx.fillStyle = '#E9E7E0'
+  ctx.fillStyle = COLORS.outside
   ctx.fillRect(0, 0, width, height)
-  for (const z of props.showZones ? [...ZONES].reverse() : ZONES.slice(-1)) {
-    ctx.fillStyle = tierOf(z.id).tint
-    ctx.fillRect(sx(z.min), sy(z.min), (z.max - z.min + 1) * s, (z.max - z.min + 1) * s)
-  }
+  ctx.fillStyle = COLORS.wall
+  ctx.fillRect(sx(0), sy(0), W, W)
 
   const x0 = Math.max(0, Math.floor(cx - width / 2 / s))
   const x1 = Math.min(WALL_SIZE, Math.ceil(cx + width / 2 / s))
   const y0 = Math.max(0, Math.floor(cy - height / 2 / s))
   const y1 = Math.min(WALL_SIZE, Math.ceil(cy + height / 2 / s))
 
-  if (s >= 10) {
-    ctx.strokeStyle = 'rgba(24, 23, 28, 0.06)'
-    ctx.lineWidth = 1
-    ctx.beginPath()
-    for (let x = x0; x <= x1; x++) {
-      const px = Math.round(sx(x)) + 0.5
-      ctx.moveTo(px, sy(y0)); ctx.lineTo(px, sy(y1))
-    }
-    for (let y = y0; y <= y1; y++) {
-      const py = Math.round(sy(y)) + 0.5
-      ctx.moveTo(sx(x0), py); ctx.lineTo(sx(x1), py)
-    }
-    ctx.stroke()
+  const open = openArea()
+  const ox = sx(open.min), oy = sy(open.min), ow = (open.max - open.min + 1) * s
+  const hcx = sx(HEART.x + HEART.size / 2), hcy = sy(HEART.y + HEART.size / 2)
+  // How far the warmth of the heart reaches, in screen px.
+  const reach = Math.max(ow * 0.75, 220)
+  const clipOpen = () => { ctx.beginPath(); ctx.rect(ox, oy, ow, ow); ctx.clip() }
+  const clipClosed = () => {
+    ctx.beginPath(); ctx.rect(sx(0), sy(0), W, W); ctx.rect(ox, oy, ow, ow); ctx.clip('evenodd')
   }
+  const hasClosed = props.closed.length > 0
 
-  // Zone borders, each in its own tier colour.
+  // Warmth around the heart, over the part of the wall that is open.
+  ctx.save()
+  clipOpen()
+  const warm = ctx.createRadialGradient(hcx, hcy, 0, hcx, hcy, reach)
+  warm.addColorStop(0, `rgba(200, 30, 60, ${0.32 + 0.1 * b})`)
+  warm.addColorStop(0.45, 'rgba(150, 24, 48, 0.13)')
+  warm.addColorStop(1, 'rgba(120, 20, 40, 0.04)')
+  ctx.fillStyle = warm
+  ctx.fillRect(ox, oy, ow, ow)
+  ctx.restore()
+
+  // Zones, when asked for: a light tint and a dashed border in the tier colour.
   if (props.showZones) {
     ctx.save()
-    ctx.setLineDash([6, 6])
-    ctx.lineWidth = 1.5
-    ctx.globalAlpha = 0.6
-    for (const z of ZONES) {
+    for (const z of [...ZONES].reverse()) {
       if (z.id === 4) continue
+      const zx = sx(z.min), zy = sy(z.min), zw = (z.max - z.min + 1) * s
+      ctx.globalAlpha = 0.07
+      ctx.fillStyle = tierOf(z.id).accent
+      ctx.fillRect(zx, zy, zw, zw)
+      ctx.globalAlpha = 0.7
+      ctx.setLineDash([6, 6])
+      ctx.lineWidth = 1.5
       ctx.strokeStyle = tierOf(z.id).accent
-      ctx.strokeRect(sx(z.min), sy(z.min), (z.max - z.min + 1) * s, (z.max - z.min + 1) * s)
+      ctx.strokeRect(zx, zy, zw, zw)
     }
     ctx.restore()
   }
-  ctx.strokeStyle = 'rgba(24, 23, 28, 0.25)'
+
+  // Seams between the cells: faint everywhere, carrying blood where the wall is open.
+  const seam = s >= 6 ? clamp(s * 0.06, 1, 4) : 0
+  if (seam) {
+    ctx.save()
+    ctx.lineWidth = seam
+    gridPath(ctx, sx, sy, x0, x1, y0, y1)
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.035)'
+    ctx.stroke()
+    clipOpen()
+    const blood = ctx.createRadialGradient(hcx, hcy, 0, hcx, hcy, reach * 1.1)
+    blood.addColorStop(0, `rgba(255, 70, 95, ${0.7 + 0.25 * b})`)
+    blood.addColorStop(0.5, 'rgba(220, 50, 75, 0.32)')
+    blood.addColorStop(1, 'rgba(170, 35, 60, 0.12)')
+    ctx.strokeStyle = blood
+    gridPath(ctx, sx, sy, x0, x1, y0, y1)
+    ctx.stroke()
+    ctx.restore()
+  }
+
+  // Pulses: a soft ring on every heartbeat near the heart, a strong one that
+  // runs across the whole screen for every new frame.
+  const rings: { r: number; a: number }[] = []
+  if (!reducedMotion) {
+    const near = hcx > -500 && hcy > -500 && hcx < width + 500 && hcy < height + 500
+    if (near) {
+      const ph = (t % BEAT) / BEAT
+      rings.push({ r: ph * 420, a: 0.12 * (1 - ph) })
+    }
+    const far = Math.hypot(Math.max(hcx, width - hcx), Math.max(hcy, height - hcy)) + 60
+    for (let i = pulses.length - 1; i >= 0; i--) {
+      const r = ((now - pulses[i]!) / 1000) * PULSE_SPEED
+      if (r > far) {
+        pulses.splice(i, 1)
+        continue
+      }
+      rings.push({ r, a: 0.1 + 0.5 * (1 - r / far) })
+    }
+    if (rings.length) {
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(sx(0), sy(0), W, W)
+      ctx.clip()
+      ctx.lineWidth = 26
+      for (const ring of rings) {
+        ctx.beginPath()
+        ctx.arc(hcx, hcy, ring.r, 0, Math.PI * 2)
+        ctx.strokeStyle = `rgba(255, 80, 105, ${ring.a})`
+        ctx.stroke()
+      }
+      ctx.restore()
+    }
+  }
+
+  // Rings not on sale yet: cold and dim, behind a fence.
+  if (hasClosed) {
+    ctx.save()
+    clipClosed()
+    ctx.fillStyle = 'rgba(8, 9, 14, 0.6)'
+    ctx.fillRect(sx(0), sy(0), W, W)
+    const pattern = hatchPattern(ctx)
+    if (pattern) {
+      ctx.fillStyle = pattern
+      ctx.fillRect(sx(0), sy(0), W, W)
+    }
+    ctx.restore()
+  }
+
+  // Vessels: red and alive in the open part, grey and dashed where the blood
+  // has not reached yet.
+  const vw = clamp(s * 0.14, 1.2, 7)
+  const viewCells = { x0, x1, y0, y1 }
+  ctx.save()
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+  if (hasClosed) {
+    ctx.save()
+    clipClosed()
+    ctx.strokeStyle = 'rgba(150, 140, 160, 0.28)'
+    for (const w of VESSEL_WIDTHS) {
+      ctx.lineWidth = vw * w
+      ctx.setLineDash([vw * 2, vw * 3])
+      vesselsPath(ctx, sx, sy, w, viewCells)
+      ctx.stroke()
+    }
+    ctx.restore()
+  }
+  clipOpen()
+  const vessel = ctx.createRadialGradient(hcx, hcy, 0, hcx, hcy, reach * 1.2)
+  vessel.addColorStop(0, `rgba(255, ${60 + Math.round(50 * b)}, 88, 0.95)`)
+  vessel.addColorStop(0.6, 'rgba(230, 50, 75, 0.6)')
+  vessel.addColorStop(1, 'rgba(190, 40, 65, 0.35)')
+  ctx.strokeStyle = vessel
+  for (const w of VESSEL_WIDTHS) {
+    ctx.lineWidth = vw * w
+    vesselsPath(ctx, sx, sy, w, viewCells)
+    ctx.stroke()
+  }
+  ctx.restore()
+
+  if (hasClosed) {
+    ctx.save()
+    ctx.setLineDash([8, 6])
+    ctx.strokeStyle = 'rgba(255, 90, 110, 0.55)'
+    ctx.lineWidth = 1.5
+    ctx.strokeRect(ox, oy, ow, ow)
+    ctx.restore()
+  }
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)'
   ctx.lineWidth = 1
-  ctx.strokeRect(sx(0), sy(0), WALL_SIZE * s, WALL_SIZE * s)
+  ctx.strokeRect(sx(0), sy(0), W, W)
 
-  drawClosed(ctx, sx, sy)
-
-  // Frames.
-  const gap = s >= 6 ? 1 : 0
+  // Frames, inset so the seams show around every photo. The pulse lights
+  // their rims as it passes; the photos themselves are never tinted.
+  const inset = seam / 2
+  const lit: { f: WallFrame; k: number }[] = []
   for (const f of props.frames) {
     if (f.x + f.size < x0 || f.x > x1 || f.y + f.size < y0 || f.y > y1) continue
     const px = sx(f.x), py = sy(f.y), size = f.size * s
+    const fx = px + inset, fy = py + inset, fs = size - inset * 2
+    const rr = Math.min(3, size / 8)
     ctx.fillStyle = f.color
     if (size >= 6) {
-      roundRectPath(ctx, px + gap / 2, py + gap / 2, size - gap, size - gap, Math.min(3, size / 8))
+      roundRectPath(ctx, fx, fy, fs, fs, rr)
       ctx.fill()
-      ctx.strokeStyle = 'rgba(24, 23, 28, 0.14)'
-      ctx.lineWidth = 1
-      ctx.stroke()
     } else {
       ctx.fillRect(px, py, Math.max(size, 0.8), Math.max(size, 0.8))
     }
     const img = f.photoUrl && size >= 8 ? photo(f.photoUrl) : null
     if (img) {
       ctx.save()
-      roundRectPath(ctx, px + gap / 2, py + gap / 2, size - gap, size - gap, Math.min(3, size / 8))
+      roundRectPath(ctx, fx, fy, fs, fs, rr)
       ctx.clip()
-      ctx.drawImage(img, px, py, size, size)
+      ctx.drawImage(img, fx, fy, fs, fs)
       ctx.restore()
     } else if (size >= 28) {
       ctx.fillStyle = f.ink
@@ -395,24 +518,72 @@ function draw() {
       ctx.textBaseline = 'middle'
       ctx.fillText(f.initials, px + size / 2, py + size / 2 + 1)
     }
+    if (rings.length && size >= 6) {
+      const d = Math.hypot(px + size / 2 - hcx, py + size / 2 - hcy)
+      let a = 0
+      for (const ring of rings) a = Math.max(a, ring.a * 2.2 * Math.max(0, 1 - Math.abs(d - ring.r) / 22))
+      if (a > 0.03) {
+        ctx.strokeStyle = `rgba(255, 150, 160, ${Math.min(1, a)})`
+        ctx.lineWidth = 2
+        roundRectPath(ctx, fx, fy, fs, fs, rr)
+        ctx.stroke()
+      }
+    }
     if (f.id === props.selectedId) {
-      ctx.strokeStyle = '#18171C'
+      ctx.strokeStyle = '#FFFFFF'
       ctx.lineWidth = 2
       ctx.strokeRect(px - 2, py - 2, size + 4, size + 4)
     }
+    const at = fresh.get(f.id)
+    if (at !== undefined) lit.push({ f, k: 1 - (now - at) / FRESH_MS })
+  }
+  for (const [id, at] of fresh) if (now - at > FRESH_MS) fresh.delete(id)
+
+  // New frames: a bright rim for a few seconds and, close enough, their heartbeat number.
+  for (const { f, k } of lit) {
+    if (k <= 0) continue
+    const px = sx(f.x), py = sy(f.y), size = Math.max(f.size * s, 4)
+    ctx.save()
+    ctx.globalAlpha = Math.min(1, k * 1.5)
+    ctx.shadowColor = 'rgba(255, 80, 105, 0.9)'
+    ctx.shadowBlur = 14
+    ctx.strokeStyle = COLORS.fresh
+    ctx.lineWidth = 2.5
+    roundRectPath(ctx, px - 2, py - 2, size + 4, size + 4, 4)
+    ctx.stroke()
+    ctx.restore()
+    if (f.number !== null && s >= 10) {
+      const label = `Heartbeat #${f.number.toLocaleString('en-US')}`
+      ctx.save()
+      ctx.globalAlpha = Math.min(1, k * 1.5)
+      ctx.font = '500 12px Inter, system-ui, sans-serif'
+      const tw = ctx.measureText(label).width + 20
+      const lx = px + size / 2 - tw / 2, ly = py - 32
+      ctx.fillStyle = 'rgba(42, 10, 16, 0.95)'
+      roundRectPath(ctx, lx, ly, tw, 24, 12)
+      ctx.fill()
+      ctx.strokeStyle = COLORS.fresh
+      ctx.lineWidth = 1
+      ctx.stroke()
+      ctx.fillStyle = COLORS.fresh
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(label, lx + tw / 2, ly + 12.5)
+      ctx.restore()
+    }
   }
 
-  // The heart: always burning, and the only thing on the wall that moves.
+  // The heart: always beating.
   const hx = sx(HEART.x), hy = sy(HEART.y), hs = Math.max(HEART.size * s, 6)
   const heartTaken = !!props.frameAt(HEART.x, HEART.y)
-  const heartVisible = hx + hs > -80 && hy + hs > -80 && hx < width + 80 && hy < height + 80
-  if (heartVisible) drawHeart(ctx, hx, hy, hs, heartTaken, reducedMotion ? 0 : performance.now() / 1000)
+  const heartVisible = hx + hs > -100 && hy + hs > -100 && hx < width + 100 && hy < height + 100
+  if (heartVisible) drawHeart(ctx, hx, hy, hs, heartTaken, b)
   if (s >= 3) {
     const label = heartTaken ? 'The heart' : `The heart · from $${HEART_PRICE_FROM.toLocaleString('en-US')}`
     ctx.font = "500 12px Inter, system-ui, sans-serif"
     const tw = ctx.measureText(label).width + 24
     const lx = hx + hs / 2 - tw / 2, ly = hy - 40
-    ctx.fillStyle = '#D85A30'
+    ctx.fillStyle = COLORS.heart
     roundRectPath(ctx, lx, ly, tw, 26, 13)
     ctx.fill()
     ctx.fillStyle = '#FFFFFF'
@@ -420,8 +591,8 @@ function draw() {
     ctx.textBaseline = 'middle'
     ctx.fillText(label, lx + tw / 2, ly + 13.5)
   }
-  // Keep the flame alive while the heart is on screen.
-  if (heartVisible && !reducedMotion) requestDraw()
+
+  drawClosedLabels(ctx, sx, sy)
 
   // Ghost of the frame being placed.
   const g = props.ghost
@@ -431,14 +602,18 @@ function draw() {
     ctx.fillRect(gx, gy, gs, gs)
     ctx.save()
     ctx.setLineDash([4, 3])
-    ctx.strokeStyle = g.valid ? '#BA7517' : '#E24B4A'
+    ctx.strokeStyle = g.valid ? '#FAC775' : '#E24B4A'
     ctx.lineWidth = 2
     ctx.strokeRect(gx, gy, gs, gs)
     ctx.restore()
-    ctx.strokeStyle = g.valid ? 'rgba(239, 159, 39, 0.3)' : 'rgba(226, 75, 74, 0.3)'
+    ctx.strokeStyle = g.valid ? 'rgba(250, 199, 117, 0.35)' : 'rgba(226, 75, 74, 0.35)'
     ctx.lineWidth = 4
     ctx.strokeRect(gx - 4, gy - 4, gs + 8, gs + 8)
   }
+
+  // Keep it alive while something on screen moves.
+  if (!reducedMotion && (heartVisible || pulses.length || fresh.size)) requestDraw()
+  else if (reducedMotion && fresh.size) setTimeout(requestDraw, 1000)
 
   emit('view', { cx, cy, w: width / s, h: height / s })
 }
@@ -635,6 +810,37 @@ onBeforeUnmount(() => {
   canvas.value?.removeEventListener('wheel', onWheel)
 })
 
+// New frames (from the live feed) start a pulse from the heart and stay lit
+// for a while. Frames already on the wall when it loads do not.
+const { status: wallStatus } = useWall()
+const known = new Set<number>()
+let primed = false
+function prime() {
+  known.clear()
+  for (const f of props.frames) known.add(f.id)
+  primed = true
+}
+watch(wallStatus, (st) => {
+  if (st === 'ready') prime()
+  else primed = false
+}, { immediate: true })
+watch(() => props.frames, (list) => {
+  if (!primed || wallStatus.value !== 'ready') return
+  const now = performance.now()
+  let added = false
+  for (const f of list) {
+    if (known.has(f.id)) continue
+    known.add(f.id)
+    if (f.number === null) continue
+    fresh.set(f.id, now)
+    added = true
+  }
+  if (added) {
+    if (!reducedMotion) pulses.push(now)
+    requestDraw()
+  }
+})
+
 watch(
   () => [props.selectedId, props.placing, props.frames, props.showZones, props.closed,
     props.ghost?.x, props.ghost?.y, props.ghost?.size, props.ghost?.valid],
@@ -664,6 +870,7 @@ watch(
 <style scoped>
 .wall {
   position: relative;
+  background: #07050A;
   width: 100%;
   height: 100%;
   overflow: hidden;
@@ -675,7 +882,7 @@ watch(
   outline: none;
 }
 .wall__canvas:focus-visible {
-  box-shadow: inset 0 0 0 2px #534AB7;
+  box-shadow: inset 0 0 0 2px #FF5A6E;
 }
 .wall__canvas--placing {
   cursor: crosshair;
