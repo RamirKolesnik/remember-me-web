@@ -249,6 +249,7 @@ function drawClosed(ctx: CanvasRenderingContext2D, sx: (x: number) => number, sy
     ctx.restore()
   }
 
+  const labels: { x0: number; y0: number; x1: number; y1: number }[] = []
   for (let i = 0; i < ZONES.length; i++) {
     const z = ZONES[i]!
     const info = props.closed.find((c) => c.id === z.id)
@@ -269,15 +270,27 @@ function drawClosed(ctx: CanvasRenderingContext2D, sx: (x: number) => number, sy
       else if (k === 2) py = ilo - band / 2
       else py = ihi + band / 2
     }
-    const X = clamp(sx(px), 140, width - 140), Y = clamp(sy(py), 40, height - 40)
-    if (Y < sy(lo) || Y > sy(hi) || X < sx(lo) || X > sx(hi)) continue
     const big = Math.round(clamp(band * s * 0.12, 13, 17))
     ctx.save()
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.font = `600 ${big}px 'Space Grotesk', Inter, sans-serif`
-    const w = Math.max(ctx.measureText(info.title).width, (ctx.font = `400 ${big - 2}px Inter, sans-serif`, ctx.measureText(info.detail).width)) + 32
+    const titleW = ctx.measureText(info.title).width
+    ctx.font = `400 ${big - 2}px Inter, sans-serif`
+    const w = Math.max(titleW, ctx.measureText(info.detail).width) + 32
     const h = big * 2 + 26
+    // Keep the label on screen, but only by moving it within its own band:
+    // a ring whose band is off screen gets no label rather than a stray one.
+    const tx = sx(px), ty = sy(py)
+    const X = clamp(tx, w / 2 + 8, width - w / 2 - 8), Y = clamp(ty, h / 2 + 8, height - h / 2 - 8)
+    const slack = (band * s) / 2
+    const box = { x0: X - w / 2, y0: Y - h / 2, x1: X + w / 2, y1: Y + h / 2 }
+    const overlaps = labels.some((o) => box.x0 < o.x1 && box.x1 > o.x0 && box.y0 < o.y1 && box.y1 > o.y0)
+    if (w > width - 16 || Math.abs(X - tx) > slack || Math.abs(Y - ty) > slack || overlaps) {
+      ctx.restore()
+      continue
+    }
+    labels.push(box)
     ctx.fillStyle = 'rgba(255, 255, 255, 0.92)'
     ctx.strokeStyle = 'rgba(24, 23, 28, 0.12)'
     ctx.lineWidth = 1
