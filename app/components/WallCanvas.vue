@@ -240,6 +240,66 @@ function drawHeart(ctx: CanvasRenderingContext2D, x: number, y: number, size: nu
   }
 }
 
+/** How far past the barrier a wave keeps breaking, in screen px. */
+const SPLASH_PX = 140
+
+/**
+ * Waves break on the edge of what is open now (the fence of the closed
+ * rings, or the wall's edge once all is open): where a ring meets the edge,
+ * the edge flares and spray flies back, sliding along it as the ring grows.
+ */
+function drawSplashes(ctx: CanvasRenderingContext2D, rings: { x: number; y: number; r: number; a: number }[],
+  ox: number, oy: number, ow: number) {
+  if (!rings.length) return
+  const x0 = ox, y0 = oy, x1 = ox + ow, y1 = oy + ow
+  ctx.save()
+  ctx.lineCap = 'round'
+  for (const ring of rings) {
+    // Each side: where it is, which way is inside, and along which axis it runs.
+    const sides = [
+      { d: ring.x - x0, vertical: true, at: x0, nx: 1, ny: 0 },
+      { d: x1 - ring.x, vertical: true, at: x1, nx: -1, ny: 0 },
+      { d: ring.y - y0, vertical: false, at: y0, nx: 0, ny: 1 },
+      { d: y1 - ring.y, vertical: false, at: y1, nx: 0, ny: -1 },
+    ]
+    for (const side of sides) {
+      if (side.d < 0 || ring.r <= side.d) continue
+      const p = ring.r - side.d // how far the wave has pushed into the barrier
+      const strength = Math.min(1, ring.a * 1.8) * Math.max(0, 1 - p / SPLASH_PX)
+      if (strength < 0.03) continue
+      const h = Math.sqrt(ring.r * ring.r - side.d * side.d)
+      for (const sign of [-1, 1]) {
+        const along = (side.vertical ? ring.y : ring.x) + sign * h
+        if (along < (side.vertical ? y0 : x0) || along > (side.vertical ? y1 : x1)) continue
+        const hx = side.vertical ? side.at : along
+        const hy = side.vertical ? along : side.at
+        const tx = side.vertical ? 0 : 1, ty = side.vertical ? 1 : 0
+        // The barrier flares where the wave hits it.
+        const half = 10 + p * 0.45
+        ctx.shadowColor = 'rgba(255, 80, 105, 0.9)'
+        ctx.shadowBlur = 12
+        ctx.strokeStyle = `rgba(255, 150, 165, ${strength})`
+        ctx.lineWidth = 3
+        ctx.beginPath()
+        ctx.moveTo(hx - tx * half, hy - ty * half)
+        ctx.lineTo(hx + tx * half, hy + ty * half)
+        ctx.stroke()
+        // Spray thrown back into the open part.
+        ctx.shadowBlur = 0
+        ctx.fillStyle = `rgba(255, 196, 206, ${strength})`
+        for (let k = 0; k < 4; k++) {
+          const back = p * (0.22 + 0.12 * (k % 2))
+          const spread = (k - 1.5) * p * 0.16
+          ctx.beginPath()
+          ctx.arc(hx + side.nx * back + tx * spread, hy + side.ny * back + ty * spread, 1.8, 0, Math.PI * 2)
+          ctx.fill()
+        }
+      }
+    }
+  }
+  ctx.restore()
+}
+
 let hatch: CanvasPattern | null = null
 function hatchPattern(ctx: CanvasRenderingContext2D): CanvasPattern | null {
   if (hatch) return hatch
@@ -451,21 +511,22 @@ function draw() {
       const p = pulses[i]!
       const age = now - p.at
       if (age < 0) continue
-      if (age > PULSE_MS) {
+      // A pulse that has a barrier in reach runs on until it breaks on it.
+      const px = sx(p.x), py = sy(p.y)
+      const toEdge = Math.min(px - ox, ox + ow - px, py - oy, oy + ow - py)
+      const reach = toEdge > 0 && toEdge < 1400 ? toEdge + SPLASH_PX : (PULSE_MS / 1000) * PULSE_SPEED
+      const r = Math.max(s / 2, 4) + (age / 1000) * PULSE_SPEED
+      if (r > Math.max(reach, (PULSE_MS / 1000) * PULSE_SPEED)) {
         pulses.splice(i, 1)
         continue
       }
-      const k = age / PULSE_MS
-      rings.push({
-        x: sx(p.x), y: sy(p.y), r: Math.max(s / 2, 4) + (age / 1000) * PULSE_SPEED,
-        a: 0.75 * (1 - k), rgb: '255, 196, 206', w: 4,
-      })
+      const k = Math.min(1, r / Math.max(reach, 1))
+      rings.push({ x: px, y: py, r, a: 0.75 * Math.sqrt(1 - k), rgb: '255, 196, 206', w: 4 })
     }
     if (rings.length) {
+      // Waves stay inside the open part of the wall: the closed rings stop them.
       ctx.save()
-      ctx.beginPath()
-      ctx.rect(sx(0), sy(0), W, W)
-      ctx.clip()
+      clipOpen()
       for (const ring of rings) {
         ctx.beginPath()
         ctx.arc(ring.x, ring.y, Math.max(0, ring.r), 0, Math.PI * 2)
@@ -531,6 +592,7 @@ function draw() {
     ctx.strokeRect(ox, oy, ow, ow)
     ctx.restore()
   }
+  drawSplashes(ctx, rings, ox, oy, ow)
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)'
   ctx.lineWidth = 1
   ctx.strokeRect(sx(0), sy(0), W, W)
