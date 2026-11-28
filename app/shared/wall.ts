@@ -202,3 +202,116 @@ export function containsLink(text: string): boolean {
   const withoutHandles = text.replace(/@[\w.]+/g, ' ')
   return LINK_PATTERNS.some((re) => re.test(withoutHandles))
 }
+
+// Tags: small badges on a frame's card, story card and the wall's filter.
+// Founder, lucky numbers and heart neighbours follow from the frame alone;
+// first wave, first in zone and last spot need the wall's milestones.
+
+/** The 52 single cells that touch the heart, corners included. */
+export const HEART_NEIGHBOURS = (HEART.size + 2) ** 2 - HEART.size ** 2
+
+export function isHeartNeighbour(x: number, y: number, size: number): boolean {
+  return size === 1 && !isHeartCell(x, y) &&
+    x >= HEART.x - 1 && x <= HEART.x + HEART.size && y >= HEART.y - 1 && y <= HEART.y + HEART.size
+}
+
+export type LuckyKind = 'one' | 'repdigit' | 'round' | 'straight'
+
+/** #1, #777, #5000, #12345: numbers people chase. */
+export function luckyKind(number: number | null | undefined): LuckyKind | null {
+  if (typeof number !== 'number' || !Number.isInteger(number) || number < 1) return null
+  if (number === 1) return 'one'
+  const d = String(number)
+  if (d.length < 3) return null
+  if (/^(\d)\1+$/.test(d)) return 'repdigit'
+  if (/^[1-9]0+$/.test(d)) return 'round'
+  if ('123456789'.startsWith(d)) return 'straight'
+  return null
+}
+
+export interface ZoneMilestones {
+  /** Number of the zone's first frame; null while it has none. */
+  first: number | null
+  /** Number of the frame that sold the zone out; null until it is sold out. */
+  last: number | null
+}
+
+export interface Milestones {
+  /**
+   * Number of the frame that opened wave 2 (the one that sold wave 1 half
+   * out). Every frame up to it is from the first wave; null while wave 2 is
+   * still closed, so every frame so far is.
+   */
+  firstWaveLast: number | null
+  zones: Record<ZoneId, ZoneMilestones>
+}
+
+export const NO_MILESTONES: Milestones = {
+  firstWaveLast: null,
+  zones: { 1: { first: null, last: null }, 2: { first: null, last: null }, 3: { first: null, last: null }, 4: { first: null, last: null } },
+}
+
+/**
+ * Milestones from the frames on the wall (active and hidden: hidden frames
+ * keep their cells). The API works out the same with SQL; the demo wall and
+ * the tests use this.
+ */
+export function milestonesOf(frames: readonly { number: number | null; x: number; y: number; size: number }[]): Milestones {
+  const sold = frames
+    .filter((f) => f.size === 1 && typeof f.number === 'number')
+    .sort((a, b) => a.number! - b.number!)
+  const zones = structuredClone(NO_MILESTONES.zones)
+  const count: Record<ZoneId, number> = { ...NOTHING_SOLD }
+  const wave1 = ZONES.filter((z) => z.wave === 1)
+  const unlockAt = Math.ceil(wave1.reduce((s, z) => s + z.capacity, 0) * WAVE_UNLOCK_SHARE)
+  let inWave1 = 0
+  let firstWaveLast: number | null = null
+  for (const f of sold) {
+    const z = zoneOfCell(f.x, f.y)
+    count[z.id]++
+    if (zones[z.id].first === null) zones[z.id].first = f.number
+    if (count[z.id] === z.capacity) zones[z.id].last = f.number
+    if (z.wave === 1 && ++inWave1 === unlockAt) firstWaveLast = f.number
+  }
+  return { firstWaveLast, zones }
+}
+
+export type TagId = 'founder' | 'first-wave' | 'first-in-zone' | 'last-spot' | 'lucky' | 'heart-neighbour'
+
+export interface Tag {
+  id: TagId
+  label: string
+  /** One line on what the tag means. */
+  title: string
+}
+
+const LUCKY: Record<LuckyKind, Tag> = {
+  one: { id: 'lucky', label: 'Number one', title: 'The very first frame on the wall' },
+  repdigit: { id: 'lucky', label: 'Lucky number', title: 'A number of one repeated digit' },
+  round: { id: 'lucky', label: 'Round number', title: 'A round number' },
+  straight: { id: 'lucky', label: 'Straight', title: 'A straight run of digits: 123…' },
+}
+
+/**
+ * Tags of a frame, most special first. Without milestones (prices not loaded
+ * yet) only the tags that follow from the frame alone are given.
+ */
+export function tagsOf(f: { number: number | null; x: number; y: number; size: number }, m: Milestones | null): Tag[] {
+  const tags: Tag[] = []
+  const heart = isHeart(f.x, f.y, f.size)
+  if (isFounder(f.number)) tags.push({ id: 'founder', label: 'Founder', title: `One of the first ${FOUNDERS.toLocaleString('en-US')} frames on the wall` })
+  if (m && !heart && f.number !== null) {
+    const z = m.zones[zoneOfFrame(f.x, f.y, f.size).id]
+    if (z.first === f.number) tags.push({ id: 'first-in-zone', label: 'First in zone', title: 'The first frame in its zone' })
+    if (z.last === f.number) tags.push({ id: 'last-spot', label: 'Last spot', title: 'Took the last free spot in its zone' })
+    if (m.firstWaveLast === null || f.number <= m.firstWaveLast) {
+      tags.push({ id: 'first-wave', label: 'First wave', title: 'Bought before the second wave opened' })
+    }
+  }
+  const lucky = luckyKind(f.number)
+  if (lucky) tags.push(LUCKY[lucky])
+  if (isHeartNeighbour(f.x, f.y, f.size)) {
+    tags.push({ id: 'heart-neighbour', label: 'Heart neighbour', title: `Right next to the heart · one of ${HEART_NEIGHBOURS} spots` })
+  }
+  return tags
+}

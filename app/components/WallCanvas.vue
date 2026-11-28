@@ -32,7 +32,9 @@ const props = withDefaults(defineProps<{
   heartActive?: boolean
   /** A zone to light up on the wall (hovered in the stats panel). */
   highlightZone?: number | null
-}>(), { heartActive: false, highlightZone: null, mine: () => [], celebrate: null, selectedId: null, placing: false, ghost: null, ghostSize: 1, initialCellPx: 32, showZones: false, closed: () => [] })
+  /** The wall's filter: these frames glow in the colour, the rest fade back. */
+  spotlight?: { ids: ReadonlySet<number>; color: string } | null
+}>(), { heartActive: false, highlightZone: null, spotlight: null, mine: () => [], celebrate: null, selectedId: null, placing: false, ghost: null, ghostSize: 1, initialCellPx: 32, showZones: false, closed: () => [] })
 
 const emit = defineEmits<{
   select: [frame: WallFrame | null]
@@ -618,8 +620,10 @@ function draw() {
   const inset = seam / 2
   const ownIds = props.mine.length ? new Set(props.mine) : null
   const lit: { f: WallFrame; k: number }[] = []
+  const spot = props.spotlight
   for (const f of props.frames) {
     if (f.x + f.size < x0 || f.x > x1 || f.y + f.size < y0 || f.y > y1) continue
+    ctx.globalAlpha = spot && !spot.ids.has(f.id) ? 0.15 : 1
     const px = sx(f.x), py = sy(f.y), size = f.size * s
     const fx = px + inset, fy = py + inset, fs = size - inset * 2
     const rr = Math.min(3, size / 8)
@@ -667,6 +671,30 @@ function draw() {
     if (at !== undefined && now >= at) lit.push({ f, k: 1 - (now - at) / FRESH_MS })
   }
   for (const [id, at] of fresh) if (now - at > FRESH_MS) fresh.delete(id)
+  ctx.globalAlpha = 1
+
+  // The filter: matching frames get a rim in its colour; far out, a dot each.
+  if (spot) {
+    ctx.save()
+    ctx.strokeStyle = spot.color
+    ctx.fillStyle = spot.color
+    ctx.shadowColor = spot.color
+    ctx.shadowBlur = 8
+    ctx.lineWidth = 2
+    for (const f of props.frames) {
+      if (!spot.ids.has(f.id)) continue
+      if (f.x + f.size < x0 || f.x > x1 || f.y + f.size < y0 || f.y > y1) continue
+      const px = sx(f.x), py = sy(f.y), size = f.size * s
+      if (size >= 6) {
+        roundRectPath(ctx, px - 1, py - 1, size + 2, size + 2, Math.min(4, size / 6))
+        ctx.stroke()
+      } else {
+        const d = 4
+        ctx.fillRect(px + size / 2 - d / 2, py + size / 2 - d / 2, d, d)
+      }
+    }
+    ctx.restore()
+  }
 
   // New frames: a bright rim for a few seconds and, close enough, their heartbeat number.
   for (const { f, k } of lit) {
@@ -894,7 +922,13 @@ function fitZone(id: number) {
   centerOn(HEART.x + HEART.size / 2, HEART.y + HEART.size / 2, (Math.min(width, height) * 0.9) / size)
 }
 
-defineExpose({ zoomBy, centerOn, fitZone })
+/** Fit a block of cells on screen (the frames the filter found), up to a close-up. */
+function fitBox(bx0: number, by0: number, bx1: number, by1: number) {
+  const w = bx1 - bx0 + 1, h = by1 - by0 + 1
+  centerOn((bx0 + bx1 + 1) / 2, (by0 + by1 + 1) / 2, Math.min(48, (width * 0.8) / w, (height * 0.8) / h))
+}
+
+defineExpose({ zoomBy, centerOn, fitZone, fitBox })
 
 // Pointer input: one pointer pans, two pinch-zoom, a short tap selects.
 const pointers = new Map<number, { x: number; y: number }>()
@@ -1149,7 +1183,7 @@ watch(() => [props.celebrate, props.frames] as const, ([id]) => {
 }, { immediate: true })
 
 watch(
-  () => [props.selectedId, props.placing, props.mine, props.heartActive, props.highlightZone, props.frames, props.showZones, props.closed,
+  () => [props.selectedId, props.placing, props.mine, props.heartActive, props.highlightZone, props.frames, props.showZones, props.closed, props.spotlight,
     props.ghost?.x, props.ghost?.y, props.ghost?.size, props.ghost?.valid],
   requestDraw,
 )

@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import { parseFrameNumber } from '~/shared/share'
-import { zoneOfFrame, isHeart } from '~/shared/wall'
-import { tierOf } from '~/shared/tiers'
 import type { WallFrame } from '~/composables/useWall'
 
 const props = defineProps<{
@@ -23,15 +21,6 @@ const fmt = (v: number) => v.toLocaleString('en-US')
 const open = computed(() => focused.value && query.value.trim() !== '')
 
 watch(query, () => { missed.value = null })
-
-// What the match row says under the name, and its zone swatch.
-const matchInfo = computed(() => {
-  const f = match.value
-  if (!f) return null
-  if (isHeart(f.x, f.y, f.size)) return { meta: 'The heart', color: 'var(--heart)' }
-  const z = zoneOfFrame(f.x, f.y, f.size)
-  return { meta: `in the ${tierOf(z.id).name}`, color: tierOf(z.id).accent }
-})
 
 const shortcut = ref('Ctrl K')
 
@@ -100,8 +89,8 @@ function onEscape() {
         <span class="search__who">
           <span class="search__name">{{ match.name }}</span>
           <span class="search__meta">
-            <i :style="{ background: matchInfo?.color }" />
-            #{{ fmt(n) }} · {{ matchInfo?.meta }}
+            #{{ fmt(n) }}
+            <FrameTags :frame="match" compact />
           </span>
         </span>
       </button>
@@ -194,8 +183,7 @@ function onEscape() {
 .search__avatar img { width: 100%; height: 100%; object-fit: cover; }
 .search__who { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .search__name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.search__meta { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); }
-.search__meta i { width: 8px; height: 8px; border-radius: 2px; }
+.search__meta { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
 @media (max-width: 720px) {
   .search { width: auto; max-width: none; }
   .search__kbd { display: none; }
