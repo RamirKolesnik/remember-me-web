@@ -923,13 +923,7 @@ function fitZone(id: number) {
   centerOn(HEART.x + HEART.size / 2, HEART.y + HEART.size / 2, (Math.min(width, height) * 0.9) / size)
 }
 
-/** Fit a block of cells on screen (the frames the filter found), up to a close-up. */
-function fitBox(bx0: number, by0: number, bx1: number, by1: number) {
-  const w = bx1 - bx0 + 1, h = by1 - by0 + 1
-  centerOn((bx0 + bx1 + 1) / 2, (by0 + by1 + 1) / 2, Math.min(48, (width * 0.8) / w, (height * 0.8) / h))
-}
-
-defineExpose({ zoomBy, centerOn, fitZone, fitBox })
+defineExpose({ zoomBy, centerOn, fitZone })
 
 // Pointer input: one pointer pans, two pinch-zoom, a short tap selects.
 const pointers = new Map<number, { x: number; y: number }>()

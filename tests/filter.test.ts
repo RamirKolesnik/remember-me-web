@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { boundsOf, FILTER_TAGS, hasTag, isFilterTag, tagCounts, TAG_STYLE } from '../app/shared/tags.ts'
+import { FILTER_TAGS, hasTag, isFilterTag, tagCounts, TAG_STYLE } from '../app/shared/tags.ts'
 import { HEART, NO_MILESTONES } from '../app/shared/wall.ts'
 
 test('the filter bar has every tag but first wave', () => {
@@ -21,9 +21,4 @@ test('has tag and counts', () => {
   assert.equal(c['heart-neighbour'], 1)
   assert.equal(c['first-wave'], 2)
   assert.equal(c['last-spot'], 0)
-})
-
-test('bounds', () => {
-  assert.equal(boundsOf([]), null)
-  assert.deepEqual(boundsOf([{ number: 1, x: 10, y: 20, size: 1 }, { number: 2, x: 5, y: 30, size: 1 }]), { x0: 5, y0: 20, x1: 10, y1: 30 })
 })
