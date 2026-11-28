@@ -5,7 +5,11 @@ import { formatShare } from '~/shared/stats'
 // Where the wall's people come from: the top countries by share of frames.
 // On a desktop the panel folds to one line (remembered); in a phone sheet it
 // is always open.
-const props = withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false })
+// A country picked here (from the search, the top or the own-country plaque)
+// lights its frames on the wall in yellow, like the tag filter; `active` is
+// the country lit now. Picking it again turns the light off.
+const props = withDefaults(defineProps<{ embedded?: boolean; active?: string | null }>(), { embedded: false, active: null })
+const emit = defineEmits<{ filter: [code: string | null] }>()
 
 const { stats, mine } = useCountries()
 const SHORT = 5
@@ -33,12 +37,21 @@ const placeOf = (code: string) => (stats.value ? countryPlace(stats.value, code)
 const shown = computed(() => picked.value ?? mine.value)
 const place = computed(() => (shown.value ? placeOf(shown.value) : null))
 const isMine = computed(() => !!shown.value && shown.value === mine.value)
+/** Shows a country in the plaque and lights it on the wall (if anyone is there). */
 function pick(code: string) {
   picked.value = code
   query.value = ''
   input.value?.blur()
+  if ((placeOf(code)?.count ?? 0) > 0) emit('filter', code)
+  else if (props.active) emit('filter', null)
+}
+/** A row of the top or the plaque: on, or off when already lit. */
+function toggle(code: string) {
+  if (props.active === code) emit('filter', null)
+  else pick(code)
 }
 function clearPick() {
+  if (props.active && props.active === picked.value) emit('filter', null)
   picked.value = null
   query.value = ''
 }
@@ -139,13 +152,26 @@ const open = computed(() => props.embedded || !collapsed.value)
           <p v-else class="cty__empty">No country called “{{ query.trim() }}”.</p>
         </template>
 
-        <div v-else-if="place" class="cty__me" :class="{ 'cty__me--none': !place.rank }" role="status">
+        <div v-else-if="place" class="cty__me" :class="{ 'cty__me--none': !place.rank, 'cty__me--lit': active === place.code }" role="status">
           <span class="fi cty__flag cty__flag--big" :class="`fi-${place.code.toLowerCase()}`" aria-hidden="true" />
           <span class="cty__me-text">
             <span class="cty__me-label">{{ isMine ? 'Your country' : place.name }}</span>
             <template v-if="place.rank">
               <b class="cty__me-main">{{ isMine ? `${place.name} is ${ordinal(place.rank)}` : `${ordinal(place.rank)} of ${fmt(place.of)}` }}</b>
               <span class="cty__me-sub">{{ fmt(place.count) }} {{ place.count === 1 ? 'person' : 'people' }} · {{ pct(place.share, table.known) }}</span>
+              <button
+                type="button"
+                class="cty__light"
+                :class="{ 'cty__light--on': active === place.code }"
+                :aria-pressed="active === place.code"
+                @click="toggle(place.code)"
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path v-if="active === place.code" d="M6 6l12 12M18 6L6 18" />
+                  <template v-else><circle cx="12" cy="12" r="4" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" /></template>
+                </svg>
+                {{ active === place.code ? 'Lit on the wall · Clear' : 'Light up on the wall' }}
+              </button>
             </template>
             <template v-else>
               <b class="cty__me-main">{{ isMine ? `No one from ${place.name} yet` : 'No one here yet' }}</b>
@@ -158,12 +184,21 @@ const open = computed(() => props.embedded || !collapsed.value)
         </div>
 
         <ol v-show="!query" class="cty__list">
-          <li v-for="(r, i) in table.top" :key="r.code" class="cty__row" :class="{ 'cty__row--me': r.code === shown }" :title="`${r.name}: ${fmt(r.count)} ${r.count === 1 ? 'frame' : 'frames'}`">
-            <span class="cty__rank">{{ i + 1 }}</span>
-            <span class="fi cty__flag" :class="`fi-${r.code.toLowerCase()}`" aria-hidden="true" />
-            <span class="cty__name">{{ r.name }}</span>
-            <b class="cty__pct">{{ pct(r.share, table.known) }}</b>
-            <span class="cty__bar" aria-hidden="true"><i :style="{ width: barOf(r.count) }" :class="{ 'cty__bar--lead': i === 0 }" /></span>
+          <li v-for="(r, i) in table.top" :key="r.code">
+            <button
+              type="button"
+              class="cty__row"
+              :class="{ 'cty__row--me': r.code === shown, 'cty__row--lit': r.code === active }"
+              :aria-pressed="r.code === active"
+              :title="`${r.name}: ${fmt(r.count)} ${r.count === 1 ? 'frame' : 'frames'}. ${r.code === active ? 'Click to clear' : 'Click to light them up'}`"
+              @click="toggle(r.code)"
+            >
+              <span class="cty__rank">{{ i + 1 }}</span>
+              <span class="fi cty__flag" :class="`fi-${r.code.toLowerCase()}`" aria-hidden="true" />
+              <span class="cty__name">{{ r.name }}</span>
+              <b class="cty__pct">{{ pct(r.share, table.known) }}</b>
+              <span class="cty__bar" aria-hidden="true"><i :style="{ width: barOf(r.count) }" :class="{ 'cty__bar--lead': i === 0 }" /></span>
+            </button>
           </li>
         </ol>
         <p v-if="table.rest && !query" class="cty__rest">
@@ -215,7 +250,18 @@ const open = computed(() => props.embedded || !collapsed.value)
 .cty__sum, .cty__empty { margin: 0; font-size: 11px; color: var(--muted); }
 .cty__empty a { color: var(--accent-ink); }
 .cty__list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 7px; }
+.cty__list { margin-left: -6px; margin-right: -6px; gap: 2px; }
 .cty__row {
+  width: 100%;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s, box-shadow 0.15s;
   display: grid;
   grid-template-columns: 12px 18px 1fr auto;
   grid-template-rows: auto 3px;
@@ -342,13 +388,40 @@ const open = computed(() => props.embedded || !collapsed.value)
 .cty__me-cta:hover { text-decoration: underline; }
 .cty__row--me .cty__name { color: var(--ink); font-weight: 600; }
 .cty__row--me .cty__rank { color: var(--accent-ink); }
+.cty__row:hover, .cty__row:focus-visible { background: var(--line-soft); outline: none; }
+/* Lit on the wall: the same yellow as the frames it lights. */
+.cty__row--lit, .cty__row--lit:hover { background: rgba(255, 225, 77, 0.1); box-shadow: inset 0 0 0 1px rgba(255, 225, 77, 0.55); }
+.cty__row--lit .cty__name { color: var(--spot); font-weight: 600; }
+.cty__row--lit .cty__bar i { background: var(--spot); box-shadow: 0 0 6px var(--spot); opacity: 1; }
+.cty__me--lit { background: rgba(255, 225, 77, 0.1); border-color: rgba(255, 225, 77, 0.6); }
+.cty__light {
+  align-self: flex-start;
+  margin-top: 5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cty__light:hover { border-color: var(--spot); color: var(--spot); }
+.cty__light--on { border-color: var(--spot); background: var(--spot); color: #2A2206; }
+.cty__light--on:hover { color: #2A2206; filter: brightness(1.05); }
 @media (max-width: 720px) {
+  .cty__row { padding: 8px 6px; }
+  .cty__light { padding: 7px 12px; font-size: 12px; }
   .cty__input { font-size: 16px; } /* no zoom-in on focus on iOS */
   .cty__search { height: 40px; }
   .cty__hit { padding: 9px 6px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .cty__search { transition: none; }
+  .cty__search, .cty__row { transition: none; }
   .cty__chev { transition: none; }
 }
 </style>

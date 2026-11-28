@@ -6,11 +6,17 @@
 import type { TagId } from '~/shared/wall'
 import { FILTER_TAGS, TAG_STYLE } from '~/shared/tags'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   active: TagId | null
   counts: Record<TagId, number>
-}>()
-const emit = defineEmits<{ pick: [tag: TagId | null] }>()
+  /** A country lit from the Countries widget: shown as a chip at the start. */
+  country?: { code: string; name: string; count: number } | null
+}>(), { country: null })
+const emit = defineEmits<{ pick: [tag: TagId | null]; clearCountry: [] }>()
+function clearAll() {
+  if (props.active) emit('pick', null)
+  if (props.country) emit('clearCountry')
+}
 
 const fmt = (n: number) => n.toLocaleString('en-US')
 const toggle = (id: TagId) => emit('pick', props.active === id ? null : id)
@@ -64,8 +70,20 @@ watch(() => props.active, (id) => nextTick(() => {
 <template>
   <nav class="bar" aria-label="Filter the wall by tag">
     <!-- Outside the scrolling row, so it is always in reach. -->
-    <button v-if="active" type="button" class="chip chip--clear" aria-label="Clear the filter" @click="emit('pick', null)">
+    <button v-if="active || country" type="button" class="chip chip--clear" aria-label="Clear the filter" @click="clearAll">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+    </button>
+    <button
+      v-if="country"
+      type="button"
+      class="chip chip--country"
+      aria-pressed="true"
+      :title="`People from ${country.name} are lit up. Click to clear.`"
+      @click="emit('clearCountry')"
+    >
+      <span class="fi chip__flag" :class="`fi-${country.code.toLowerCase()}`" aria-hidden="true" />
+      {{ country.name }}
+      <span class="chip__n">{{ fmt(country.count) }}</span>
     </button>
     <div class="row" :class="{ 'row--left': canLeft, 'row--right': canRight }">
       <div ref="track" class="track" @scroll.passive="measure" @wheel="onWheel">
@@ -172,6 +190,18 @@ watch(() => props.active, (id) => nextTick(() => {
   opacity: 1;
 }
 .chip--on .chip__n { background: var(--spot); color: #2A2200; }
+.chip--country {
+  max-width: 220px;
+  border-color: var(--spot);
+  background: rgba(255, 225, 77, 0.14);
+  color: var(--spot);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chip--country .chip__n { color: var(--spot); }
+.chip__flag { width: 18px; height: 13.5px; line-height: 1; border-radius: 2px; flex: none; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14); }
 .chip--clear { flex-shrink: 0; width: 30px; padding: 0; justify-content: center; color: var(--muted); }
 /* Arrows sit inside the bar, over the faded ends of the row. */
 .arrow {
