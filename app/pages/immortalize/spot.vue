@@ -68,7 +68,12 @@ const ghost = computed<Ghost | null>(() => {
 // "Claim a spot nearby": the frame it came from, and the free spots around it.
 const wall = ref<{ centerOn: (x: number, y: number, s?: number) => void } | null>(null)
 const near = computed(() => parseCell(route.query.near))
-const nearFrame = computed(() => (near.value ? frameAt(near.value.x, near.value.y) : null))
+// frameAt reads an index that is not reactive: depend on the loaded frames too.
+const nearFrame = computed(() => {
+  void frames.value
+  void status.value
+  return near.value ? frameAt(near.value.x, near.value.y) : null
+})
 const suggestions = computed(() => {
   const c = near.value
   if (!c || status.value !== 'ready') return []
