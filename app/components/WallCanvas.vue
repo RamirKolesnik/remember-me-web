@@ -4,6 +4,7 @@ import { tierOf } from '~/shared/tiers'
 import { makeVessels } from '~/shared/vessels'
 import { beatStep, heartbeatLabel, purchasesLastHour } from '~/shared/heartbeat'
 import { readMine } from '~/shared/mine'
+import { frameAccent } from '~/shared/tags'
 import type { WallFrame } from '~/composables/useWall'
 
 export interface Ghost { x: number; y: number; size: number; valid: boolean }
@@ -662,10 +663,16 @@ function draw() {
         ctx.stroke()
       }
     }
+    // The selected frame: a rim in its zone colour, like its card.
     if (f.id === props.selectedId) {
-      ctx.strokeStyle = '#FFFFFF'
-      ctx.lineWidth = 2
+      ctx.save()
+      ctx.globalAlpha = 1
+      ctx.strokeStyle = frameAccent(f)
+      ctx.shadowColor = ctx.strokeStyle
+      ctx.shadowBlur = 10
+      ctx.lineWidth = 2.5
       ctx.strokeRect(px - 2, py - 2, size + 4, size + 4)
+      ctx.restore()
     }
     const at = fresh.get(f.id)
     if (at !== undefined && now >= at) lit.push({ f, k: 1 - (now - at) / FRESH_MS })

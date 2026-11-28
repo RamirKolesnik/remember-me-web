@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import type { WallFrame } from '~/composables/useWall'
 import type { TagId } from '~/shared/wall'
+import { frameAccent } from '~/shared/tags'
 
 const props = defineProps<{ frame: WallFrame }>()
 const emit = defineEmits<{ close: []; report: [frame: WallFrame]; filter: [tag: TagId] }>()
+// The card wears the frame's zone colour: rim, glow and a ring around the photo.
+const accent = computed(() => frameAccent(props.frame))
 const number = computed(() => props.frame.number ? `Heartbeat #${props.frame.number.toLocaleString('en-US')} · ` : '')
 </script>
 
 <template>
-  <section class="card" :aria-label="`Frame of ${frame.name}`">
+  <section class="card" :style="{ '--zone': accent }" :aria-label="`Frame of ${frame.name}`">
     <button type="button" class="card__close btn btn--ghost btn--icon" aria-label="Close" @click="emit('close')">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
     </button>
@@ -39,16 +42,18 @@ const number = computed(() => props.frame.number ? `Heartbeat #${props.frame.num
   position: relative;
   width: 320px;
   max-width: 100%;
-  background: var(--panel);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--zone) 16%, transparent), transparent 140px),
+    var(--panel);
   -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
-  border: 1px solid var(--line);
+  border: 1.5px solid color-mix(in srgb, var(--zone) 70%, transparent);
   border-radius: 14px;
   padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow), 0 0 24px color-mix(in srgb, var(--zone) 28%, transparent);
 }
 .card__close { position: absolute; top: 8px; right: 8px; border: 0; }
 .card__top { display: flex; gap: 14px; align-items: center; padding-right: 40px; }
@@ -64,7 +69,11 @@ const number = computed(() => props.frame.number ? `Heartbeat #${props.frame.num
   font-size: 30px;
   font-weight: 600;
 }
-.card__avatar { overflow: hidden; }
+.card__avatar {
+  overflow: hidden;
+  outline: 2px solid var(--zone);
+  outline-offset: 2px;
+}
 .card__avatar img { width: 100%; height: 100%; object-fit: cover; }
 .card__who { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .card__name { font-size: 17px; font-weight: 600; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
