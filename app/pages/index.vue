@@ -5,7 +5,7 @@ import type { ClosedZone, WallView } from '~/components/WallCanvas.vue'
 import { unlockText } from '~/shared/news'
 import { tierOf } from '~/shared/tiers'
 import { readMine } from '~/shared/mine'
-import { boundsOf, hasTag, SPOTLIGHT_COLOR, tagCounts } from '~/shared/tags'
+import { hasTag, SPOTLIGHT_COLOR, tagCounts } from '~/shared/tags'
 import type { TagId } from '~/shared/wall'
 
 const { frames, frameAt, status, load, byId, byNumber } = useWall()
@@ -15,7 +15,6 @@ const wall = ref<{
   zoomBy: (f: number) => void
   centerOn: (x: number, y: number, s?: number) => void
   fitZone: (id: number) => void
-  fitBox: (x0: number, y0: number, x1: number, y1: number) => void
 } | null>(null)
 const selected = ref<WallFrame | null>(null)
 const view = ref<WallView | null>(null)
@@ -64,12 +63,10 @@ const filtered = computed(() => {
 const spotlight = computed(() => filter.value
   ? { ids: new Set(filtered.value.map((f) => f.id)), color: SPOTLIGHT_COLOR }
   : null)
+// The view stays where the visitor is: the filter only lights frames up.
 function applyFilter(id: TagId | null) {
   filter.value = id
-  if (!id) return
-  onSelect(null)
-  const b = boundsOf(filtered.value)
-  if (b) wall.value?.fitBox(b.x0, b.y0, b.x1, b.y1)
+  if (id) onSelect(null)
 }
 function onKey(e: KeyboardEvent) {
   if (e.key === 'Escape' && filter.value && !selected.value) filter.value = null

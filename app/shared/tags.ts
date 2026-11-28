@@ -33,14 +33,3 @@ export function tagCounts(frames: readonly Framed[], m: Milestones | null): Reco
 }
 
 export const hasTag = (f: Framed, id: TagId, m: Milestones | null): boolean => tagsOf(f, m).some((t) => t.id === id)
-
-/** The cells that hold all the matches, to fit them on screen; null when there are none. */
-export function boundsOf(frames: readonly Framed[]): { x0: number; y0: number; x1: number; y1: number } | null {
-  if (!frames.length) return null
-  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
-  for (const f of frames) {
-    x0 = Math.min(x0, f.x); y0 = Math.min(y0, f.y)
-    x1 = Math.max(x1, f.x + f.size - 1); y1 = Math.max(y1, f.y + f.size - 1)
-  }
-  return { x0, y0, x1, y1 }
-}
