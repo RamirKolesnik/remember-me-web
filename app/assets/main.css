@@ -120,3 +120,14 @@ textarea.input { padding: 12px 14px; line-height: 1.5; resize: vertical; }
   backdrop-filter: blur(10px);
   color: var(--ink);
 }
+
+/* Special frame cards (FrameCard.vue): a gold rim that runs round the
+   Founder's card, the heart owner's flowing fire, lucky numbers that shine. */
+@property --spin {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+@keyframes rm-spin { to { --spin: 360deg; } }
+@keyframes rm-flow { to { background-position: 0 0, 300% 0; } }
+@keyframes rm-shine { to { background-position: -200% 0; } }

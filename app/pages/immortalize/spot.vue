@@ -4,13 +4,14 @@ import { tierOf } from '~/shared/tiers'
 import { nextStepText, unlockText } from '~/shared/news'
 import type { ClosedZone, Ghost } from '~/components/WallCanvas.vue'
 import { ApiError } from '~/composables/useApi'
+import { nearestFree, parseCell } from '~/shared/nearby'
 
 useHead({ title: 'Choose your spot — The Living Wall' })
 
 const draft = useDraft()
 const api = useApi()
 const route = useRoute()
-const { frames, frameAt, isFree, load } = useWall()
+const { frames, frameAt, isFree, load, status } = useWall()
 const size = FRAME_SIZE
 const { pricing, refresh: refreshPricing } = usePricing()
 const closed = computed<ClosedZone[]>(() => {
@@ -36,7 +37,7 @@ const cancelled = computed(() => route.query.cancelled === '1')
 
 onMounted(() => {
   if (!draft.value.name || !draft.value.photo) {
-    navigateTo('/immortalize')
+    navigateTo({ path: '/immortalize', query: route.query.near ? { near: route.query.near } : {} })
     return
   }
   // Fresh data: other people may have bought or held spots meanwhile.
@@ -63,6 +64,26 @@ const ghost = computed<Ghost | null>(() => {
   const valid = placementError(p.x, p.y) === null && openCell(p.x, p.y) && isFree(p.x, p.y, size)
   return { x: p.x, y: p.y, size, valid }
 })
+
+// "Claim a spot nearby": the frame it came from, and the free spots around it.
+const wall = ref<{ centerOn: (x: number, y: number, s?: number) => void } | null>(null)
+const near = computed(() => parseCell(route.query.near))
+const nearFrame = computed(() => (near.value ? frameAt(near.value.x, near.value.y) : null))
+const suggestions = computed(() => {
+  const c = near.value
+  if (!c || status.value !== 'ready') return []
+  return nearestFree(c.x, c.y, (x, y) => placementError(x, y) === null && openCell(x, y) && isFree(x, y, size), 8)
+})
+let flown = false
+watch([wall, status, suggestions], ([w, st, list]) => {
+  const c = near.value
+  if (flown || !w || !c || st !== 'ready') return
+  flown = true
+  w.centerOn(c.x + 0.5, c.y + 0.5, 40)
+  // The closest free spot is picked for you; any marked one is a tap away.
+  if (!spot.value && list[0]) onPick(list[0])
+}, { immediate: true })
+const nearLink = computed(() => ({ path: '/immortalize', query: route.query.near ? { near: route.query.near } : {} }))
 
 const zone = computed(() => (spot.value ? zoneOfCell(spot.value.x, spot.value.y) : null))
 /** Where the chosen spot's zone stands: price now, next price, how many left. */
@@ -146,6 +167,7 @@ const fmt = formatUsd
       <section class="wallbox" aria-label="Pick a spot on the wall">
         <ClientOnly>
           <WallCanvas
+            ref="wall"
             :frames="frames"
             :frame-at="frameAt"
             placing
@@ -153,6 +175,8 @@ const fmt = formatUsd
             :closed="closed"
             :ghost="ghost"
             :ghost-size="size"
+            :suggest="suggestions"
+            :selected-id="nearFrame?.id ?? null"
             :initial-cell-px="12"
             @pick="onPick"
             @hover="hover = $event"
@@ -166,6 +190,11 @@ const fmt = formatUsd
         <p v-if="cancelled" class="held" role="status">Payment cancelled — the spot is free again. Pick any spot to try again.</p>
         <div class="panel">
           <h1>Your spot</h1>
+          <p v-if="near" class="near" role="status">
+            <template v-if="nearFrame">Next to <b>{{ nearFrame.name }}</b><template v-if="nearFrame.number"> (#{{ nearFrame.number.toLocaleString('en-US') }})</template>.</template>
+            <template v-else>Next to the frame you picked.</template>
+            {{ suggestions.length ? 'The closest free spots are marked in green.' : 'No free spots right around it — pick any spot nearby.' }}
+          </p>
           <template v-if="!spot">
             <p class="muted">Pick a free spot in the open part of the wall. The closer to the heart, the more it costs.</p>
             <ul v-if="pricing" class="zones" aria-label="Prices right now">
@@ -221,13 +250,23 @@ const fmt = formatUsd
           </div>
         </div>
 
-        <NuxtLink to="/immortalize" class="back">← Back to details</NuxtLink>
+        <NuxtLink :to="nearLink" class="back">← Back to details</NuxtLink>
       </aside>
     </main>
   </div>
 </template>
 
 <style scoped>
+.near {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--ok-soft);
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.near b { color: var(--ink); }
 .page { min-height: 100dvh; display: flex; flex-direction: column; }
 .main { flex: 1; display: flex; flex-wrap: wrap; gap: 24px; padding: 24px; }
 .wallbox {

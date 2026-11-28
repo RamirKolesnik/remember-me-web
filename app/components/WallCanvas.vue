@@ -33,9 +33,11 @@ const props = withDefaults(defineProps<{
   heartActive?: boolean
   /** A zone to light up on the wall (hovered in the stats panel). */
   highlightZone?: number | null
+  /** Free cells to point out ("claim a spot nearby"): dashed green squares. */
+  suggest?: { x: number; y: number }[]
   /** The wall's filter: these frames glow in the colour, the rest fade back. */
   spotlight?: { ids: ReadonlySet<number>; color: string } | null
-}>(), { heartActive: false, highlightZone: null, spotlight: null, mine: () => [], celebrate: null, selectedId: null, placing: false, ghost: null, ghostSize: 1, initialCellPx: 32, showZones: false, closed: () => [] })
+}>(), { heartActive: false, highlightZone: null, spotlight: null, suggest: () => [], mine: () => [], celebrate: null, selectedId: null, placing: false, ghost: null, ghostSize: 1, initialCellPx: 32, showZones: false, closed: () => [] })
 
 const emit = defineEmits<{
   select: [frame: WallFrame | null]
@@ -144,6 +146,7 @@ let sleepTimer: ReturnType<typeof setTimeout> | null = null
 
 /** The gold heartbeat of a frame this visitor just bought. */
 const MINE_COLOR = '#FFD27A'
+const SUGGEST_COLOR = '#8BDB96'
 let ceremony: { id: number; at: number } | null = null
 const CEREMONY_MS = 12000
 
@@ -680,6 +683,26 @@ function draw() {
   for (const [id, at] of fresh) if (now - at > FRESH_MS) fresh.delete(id)
   ctx.globalAlpha = 1
 
+  // Suggested free cells: a dashed green square each, with a soft fill.
+  if (props.suggest.length) {
+    ctx.save()
+    ctx.strokeStyle = SUGGEST_COLOR
+    ctx.fillStyle = 'rgba(139, 219, 150, 0.14)'
+    ctx.lineWidth = 1.5
+    ctx.setLineDash([4, 3])
+    for (const c of props.suggest) {
+      const px = sx(c.x), py = sy(c.y)
+      if (s >= 6) {
+        ctx.fillRect(px + 2, py + 2, s - 4, s - 4)
+        ctx.strokeRect(px + 2, py + 2, s - 4, s - 4)
+      } else {
+        ctx.fillStyle = SUGGEST_COLOR
+        ctx.fillRect(px + s / 2 - 1.5, py + s / 2 - 1.5, 3, 3)
+      }
+    }
+    ctx.restore()
+  }
+
   // The filter: matching frames get a rim in its colour; far out, a dot each.
   if (spot) {
     ctx.save()
@@ -1185,7 +1208,7 @@ watch(() => [props.celebrate, props.frames] as const, ([id]) => {
 }, { immediate: true })
 
 watch(
-  () => [props.selectedId, props.placing, props.mine, props.heartActive, props.highlightZone, props.frames, props.showZones, props.closed, props.spotlight,
+  () => [props.selectedId, props.placing, props.mine, props.heartActive, props.highlightZone, props.frames, props.showZones, props.closed, props.spotlight, props.suggest,
     props.ghost?.x, props.ghost?.y, props.ghost?.size, props.ghost?.valid],
   requestDraw,
 )
