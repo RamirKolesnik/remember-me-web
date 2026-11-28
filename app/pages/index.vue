@@ -5,7 +5,8 @@ import type { ClosedZone, WallView } from '~/components/WallCanvas.vue'
 import { unlockText } from '~/shared/news'
 import { tierOf } from '~/shared/tiers'
 import { readMine } from '~/shared/mine'
-import { boundsOf, filterColor, filterLabel, matchesFilter, type WallFilter } from '~/shared/tags'
+import { boundsOf, hasTag, SPOTLIGHT_COLOR, tagCounts } from '~/shared/tags'
+import type { TagId } from '~/shared/wall'
 
 const { frames, frameAt, status, load, byId, byNumber } = useWall()
 const api = useApi()
@@ -52,22 +53,21 @@ const heartActive = computed(() => heartOpen.value || (!!selected.value && selec
 
 const { pricing, milestones } = usePricing()
 
-// The filter: a tap on a tag (Founder, a zone...) lights up every frame like it.
-const filter = ref<WallFilter | null>(null)
+// The tag filter: a chip in the bar (or a tag on a frame card) lights up every
+// frame with that tag in yellow. The visitor's own gold "You" rims step aside.
+const filter = ref<TagId | null>(null)
+const counts = computed(() => tagCounts(frames.value, milestones.value))
 const filtered = computed(() => {
-  const fl = filter.value
-  return fl ? frames.value.filter((f) => matchesFilter(f, fl, milestones.value)) : []
+  const id = filter.value
+  return id ? frames.value.filter((f) => hasTag(f, id, milestones.value)) : []
 })
 const spotlight = computed(() => filter.value
-  ? { ids: new Set(filtered.value.map((f) => f.id)), color: filterColor(filter.value) }
+  ? { ids: new Set(filtered.value.map((f) => f.id)), color: SPOTLIGHT_COLOR }
   : null)
-function applyFilter(fl: WallFilter) {
-  filter.value = fl
+function applyFilter(id: TagId | null) {
+  filter.value = id
+  if (!id) return
   onSelect(null)
-  if (fl.kind === 'zone') {
-    wall.value?.fitZone(fl.id)
-    return
-  }
   const b = boundsOf(filtered.value)
   if (b) wall.value?.fitBox(b.x0, b.y0, b.x1, b.y1)
 }
@@ -197,7 +197,7 @@ async function onReport(frame: WallFrame) {
           :mine="mine"
           :celebrate="celebrate"
           :heart-active="heartActive"
-          :highlight-zone="highlightZone ?? (filter?.kind === 'zone' ? filter.id : null)"
+          :highlight-zone="highlightZone"
           :spotlight="spotlight"
           @select="onSelect"
           @heart="onSelect(null); heartOpen = true; openWidget = null"
@@ -207,13 +207,7 @@ async function onReport(frame: WallFrame) {
 
       <WallStatus />
 
-      <div v-if="filter" class="filter" role="status" :style="{ '--tag': filterColor(filter) }">
-        <i aria-hidden="true" />
-        <span><b>{{ filterLabel(filter) }}</b> · {{ filtered.length.toLocaleString('en-US') }} on the wall</span>
-        <button type="button" class="filter__clear" aria-label="Show all frames" @click="filter = null">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
-        </button>
-      </div>
+      <TagFilterBar class="tagbar" :active="filter" :counts="counts" @pick="applyFilter" />
 
       <WallWidget id="search" class="w-search" label="Find a frame" icon="search" :sheet="false">
         <WallSearch :preview="byNumber" :find="goToNumber" />
@@ -283,42 +277,15 @@ async function onReport(frame: WallFrame) {
   gap: 8px;
 }
 .w-search { position: absolute; top: 12px; left: 16px; z-index: 3; }
-/* The filter chip: top center under the status pill, in the colour of the tag. */
-.filter {
+/* The tag filter bar: bottom center, between the zoom buttons and the widgets. */
+.tagbar {
   position: absolute;
-  top: 52px;
+  bottom: 16px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 3;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 4px 4px 12px;
-  border: 1px solid color-mix(in srgb, var(--tag) 45%, transparent);
-  border-radius: 999px;
-  background: var(--panel);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
-  box-shadow: var(--shadow);
-  font-size: 13px;
-  color: var(--ink-2);
-  white-space: nowrap;
+  max-width: calc(100% - 560px);
+  z-index: 1;
 }
-.filter i { width: 8px; height: 8px; border-radius: 50%; background: var(--tag); box-shadow: 0 0 8px var(--tag); }
-.filter b { color: var(--tag); font-weight: 600; }
-.filter__clear {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-}
-.filter__clear:hover { color: var(--ink); background: var(--line); }
 /* The zones switch: a small track that fills with the zone colours when on. */
 .zones { gap: 8px; }
 .zones__track {
@@ -391,7 +358,8 @@ async function onReport(frame: WallFrame) {
 @media (max-width: 720px) {
   .w-search { left: 12px; }
   /* Right of the search icon, clear of the corner widgets. */
-  .filter { top: 12px; left: 64px; right: 12px; transform: none; justify-content: space-between; }
+  /* Right of the search icon; scrolls sideways. */
+  .tagbar { top: 12px; bottom: auto; left: 64px; right: 12px; transform: none; max-width: none; }
   /* The status pills move below the search icon. */
   .stage :deep(.status) { top: 68px; }
   /* Feed, stats and map fold into icons in the bottom-right corner. */
