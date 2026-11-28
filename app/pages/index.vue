@@ -118,8 +118,25 @@ function toggleZones() {
   try { localStorage.setItem(ZONES_KEY, showZones.value ? '1' : '0') } catch { /* private mode */ }
 }
 
+// The wall's effects (heartbeat, glow, pulses of new frames): on by default.
+// Off also stills the animated cards and the live feed (class on <html>).
+const EFFECTS_KEY = 'rm.wall.effects'
+const effects = ref(true)
+function toggleEffects() {
+  effects.value = !effects.value
+  try { localStorage.setItem(EFFECTS_KEY, effects.value ? '1' : '0') } catch { /* private mode */ }
+}
+watch(effects, (on) => {
+  if (import.meta.client) document.documentElement.classList.toggle('rm-calm', !on)
+})
+onBeforeUnmount(() => {
+  if (import.meta.client) document.documentElement.classList.remove('rm-calm')
+})
+
 onMounted(() => {
   try { showZones.value = localStorage.getItem(ZONES_KEY) === '1' } catch { /* private mode */ }
+  try { effects.value = localStorage.getItem(EFFECTS_KEY) !== '0' } catch { /* private mode */ }
+  document.documentElement.classList.toggle('rm-calm', !effects.value)
   mine.value = readMine()
   // A frame bought in another tab of this browser becomes "You" here too.
   window.addEventListener('storage', onStorage)
@@ -213,6 +230,7 @@ async function onReport(frame: WallFrame) {
           :frame-at="frameAt"
           :selected-id="selected?.id ?? null"
           :show-zones="showZones"
+          :effects="effects"
           :closed="closed"
           :mine="mine"
           :celebrate="celebrate"
@@ -247,6 +265,17 @@ async function onReport(frame: WallFrame) {
         >
           <span class="zones__track" aria-hidden="true"><span class="zones__thumb" /></span>
           <span>Zones</span>
+        </button>
+        <button
+          type="button"
+          class="btn btn--ghost zones effects"
+          role="switch"
+          :aria-checked="effects"
+          title="Heartbeat, glow and pulses of new frames"
+          @click="toggleEffects"
+        >
+          <span class="zones__track" aria-hidden="true"><span class="zones__thumb" /></span>
+          <span>Effects</span>
         </button>
         <button type="button" class="btn btn--ghost btn--icon" aria-label="Zoom in" @click="wall?.zoomBy(1.5)">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
@@ -334,15 +363,16 @@ async function onReport(frame: WallFrame) {
   background: linear-gradient(90deg, #6F7CFF, #FF5A4E, #FF4D8D);
 }
 .zones[aria-checked='true'] .zones__thumb { transform: translateX(12px); }
+.effects[aria-checked='true'] .zones__track { background: linear-gradient(90deg, #FF3B52, #FFB36B); }
 @media (prefers-reduced-motion: reduce) {
   .zones__track, .zones__thumb { transition: none; }
 }
-/* Under the search, above the zones switch and zoom buttons (4 × 44px + gaps). */
+/* Under the search, above the zones and effects switches and zoom buttons (5 × 44px + gaps). */
 .w-feed {
   position: absolute;
   top: 68px;
   left: 16px;
-  max-height: calc(100% - 68px - 240px);
+  max-height: calc(100% - 68px - 292px);
   z-index: 1;
   display: flex;
   flex-direction: column;

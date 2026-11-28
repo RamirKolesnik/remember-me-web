@@ -131,3 +131,13 @@ textarea.input { padding: 12px 14px; line-height: 1.5; resize: vertical; }
 @keyframes rm-spin { to { --spin: 360deg; } }
 @keyframes rm-flow { to { background-position: 0 0, 300% 0; } }
 @keyframes rm-shine { to { background-position: -200% 0; } }
+
+/* The wall's "Effects" switch is off (pages/index.vue puts .rm-calm on <html>):
+   the cards, the heart's card and the live feed stand still, as the wall does. */
+.rm-calm .card--founder::before,
+.rm-calm .card__lucky,
+.rm-calm .card--neighbour,
+.rm-calm .card--heart,
+.rm-calm .heart__badge svg,
+.rm-calm .feed__live--on,
+.rm-calm .feed__item--fresh { animation: none !important; }
