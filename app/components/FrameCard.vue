@@ -1,11 +1,9 @@
 <script setup lang="ts">
-import { isFounder, zoneOfFrame } from '~/shared/wall'
-import { tierOf } from '~/shared/tiers'
+import { isFounder } from '~/shared/wall'
 import type { WallFrame } from '~/composables/useWall'
 
 const props = defineProps<{ frame: WallFrame }>()
 const emit = defineEmits<{ close: []; report: [frame: WallFrame] }>()
-const zone = computed(() => zoneOfFrame(props.frame.x, props.frame.y, props.frame.size))
 const number = computed(() => props.frame.number ? `Heartbeat #${props.frame.number.toLocaleString('en-US')} · ` : '')
 </script>
 
@@ -23,8 +21,9 @@ const number = computed(() => props.frame.number ? `Heartbeat #${props.frame.num
         <span class="card__name">
           {{ frame.name }}
           <span v-if="isFounder(frame.number)" class="card__founder" title="One of the first 1,000 frames on the wall">★ Founder</span>
+          <ZoneTag :x="frame.x" :y="frame.y" :size="frame.size" />
         </span>
-        <span class="card__meta">{{ number }}in the {{ tierOf(zone.id).name }} · {{ frame.placedAt }}</span>
+        <span class="card__meta">{{ number }}{{ frame.placedAt }}</span>
       </div>
     </div>
     <p class="card__note">{{ frame.note }}</p>
