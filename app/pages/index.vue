@@ -241,6 +241,9 @@ async function onReport(frame: WallFrame) {
         <WallWidget v-if="mobile" id="feed" label="Just immortalized" icon="feed" :badge="feedBadge">
           <RecentFeed embedded @pick="show($event); openWidget = null" @arrived="onArrived" />
         </WallWidget>
+        <WallWidget id="countries" label="Countries" icon="globe" framed>
+          <WallCountries :embedded="mobile" />
+        </WallWidget>
         <WallWidget id="stats" label="The wall" icon="stats" framed>
           <WallStats @highlight="highlightZone = $event" @fit="fitZone" />
         </WallWidget>

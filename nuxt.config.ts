@@ -4,7 +4,8 @@ const baseURL = process.env.NUXT_APP_BASE_URL || '/'
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: false },
-  css: ['~/assets/main.css'],
+  // flag-icons: SVG flags as CSS classes (fi fi-us); emoji flags do not show on Windows.
+  css: ['flag-icons/css/flag-icons.min.css', '~/assets/main.css'],
   app: {
     // GitHub Pages serves the site from /<repo>/; the deploy workflow sets this.
     baseURL,
