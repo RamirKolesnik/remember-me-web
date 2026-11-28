@@ -4,6 +4,7 @@ import { fromApi, type ApiFrame, type WallFrame } from '~/composables/useWall'
 import type { ClosedZone, WallView } from '~/components/WallCanvas.vue'
 import { unlockText } from '~/shared/news'
 import { tierOf } from '~/shared/tiers'
+import { countryName } from '~/shared/countries'
 import { readMine } from '~/shared/mine'
 import { hasTag, SPOTLIGHT_COLOR, tagCounts } from '~/shared/tags'
 import type { TagId } from '~/shared/wall'
@@ -56,20 +57,42 @@ const { pricing, milestones } = usePricing()
 // frame with that tag in yellow. The visitor's own gold "You" rims step aside.
 const filter = ref<TagId | null>(null)
 const counts = computed(() => tagCounts(frames.value, milestones.value))
+// Or a country, picked in the Countries widget: the same yellow light.
+// One filter at a time: a tag clears the country and the other way round.
+const countryFilter = ref<string | null>(null)
 const filtered = computed(() => {
   const id = filter.value
-  return id ? frames.value.filter((f) => hasTag(f, id, milestones.value)) : []
+  if (id) return frames.value.filter((f) => hasTag(f, id, milestones.value))
+  const c = countryFilter.value
+  return c ? frames.value.filter((f) => f.country === c) : []
 })
-const spotlight = computed(() => filter.value
+const spotlight = computed(() => filter.value || countryFilter.value
   ? { ids: new Set(filtered.value.map((f) => f.id)), color: SPOTLIGHT_COLOR }
   : null)
 // The view stays where the visitor is: the filter only lights frames up.
 function applyFilter(id: TagId | null) {
   filter.value = id
-  if (id) onSelect(null)
+  if (id) {
+    countryFilter.value = null
+    onSelect(null)
+  }
+}
+const litCountry = computed(() => countryFilter.value
+  ? { code: countryFilter.value, name: countryName(countryFilter.value), count: filtered.value.length }
+  : null)
+function applyCountry(code: string | null) {
+  countryFilter.value = code
+  if (code) {
+    filter.value = null
+    onSelect(null)
+    // On a phone the sheet would cover the wall: close it to show the light.
+    if (mobile.value) openWidget.value = null
+  }
 }
 function onKey(e: KeyboardEvent) {
-  if (e.key === 'Escape' && filter.value && !selected.value) filter.value = null
+  if (e.key !== 'Escape' || selected.value) return
+  if (filter.value) filter.value = null
+  else if (countryFilter.value) countryFilter.value = null
 }
 const closed = computed<ClosedZone[]>(() => {
   const p = pricing.value
@@ -204,7 +227,7 @@ async function onReport(frame: WallFrame) {
 
       <WallStatus />
 
-      <TagFilterBar class="tagbar" :active="filter" :counts="counts" @pick="applyFilter" />
+      <TagFilterBar class="tagbar" :active="filter" :counts="counts" :country="litCountry" @pick="applyFilter" @clear-country="applyCountry(null)" />
 
       <WallWidget id="search" class="w-search" label="Find a frame" icon="search" :sheet="false">
         <WallSearch :preview="byNumber" :find="goToNumber" />
@@ -242,7 +265,7 @@ async function onReport(frame: WallFrame) {
           <RecentFeed embedded @pick="show($event); openWidget = null" @arrived="onArrived" />
         </WallWidget>
         <WallWidget id="countries" label="Countries" icon="globe" framed>
-          <WallCountries :embedded="mobile" />
+          <WallCountries :embedded="mobile" :active="countryFilter" @filter="applyCountry" />
         </WallWidget>
         <WallWidget id="stats" label="The wall" icon="stats" framed>
           <WallStats @highlight="highlightZone = $event" @fit="fitZone" />
