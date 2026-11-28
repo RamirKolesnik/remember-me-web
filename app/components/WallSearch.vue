@@ -39,11 +39,19 @@ async function go() {
   }
 }
 
+const hiddenWidgets = useHiddenWidgets()
 function onKey(e: KeyboardEvent) {
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
     e.preventDefault()
-    input.value?.focus()
-    input.value?.select()
+    // Slid off the screen: bring the search back first.
+    if (hiddenWidgets.value.search) {
+      hiddenWidgets.value = { ...hiddenWidgets.value, search: false }
+      writeHidden('search', false)
+    }
+    nextTick(() => {
+      input.value?.focus()
+      input.value?.select()
+    })
   }
 }
 onMounted(() => {

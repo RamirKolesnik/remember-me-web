@@ -265,11 +265,11 @@ async function onReport(frame: WallFrame) {
 
       <TagFilterBar class="tagbar" :active="filter" :counts="counts" :country="litCountry" :mine="myFrames.length" :mine-on="myFilter" @pick="applyFilter" @clear-country="applyCountry(null)" @mine="applyMine" />
 
-      <WallWidget id="search" class="w-search" label="Find a frame" icon="search" :sheet="false">
+      <WallWidget id="search" class="w-search" edge="left" label="Find a frame" icon="search" :sheet="false">
         <WallSearch :preview="byNumber" :find="goToNumber" />
       </WallWidget>
 
-      <WallWidget v-if="!mobile" id="feed" class="w-feed" label="Just immortalized" icon="feed">
+      <WallWidget v-if="!mobile" id="feed" class="w-feed" edge="left" label="Just immortalized" icon="feed">
         <RecentFeed @pick="show" />
       </WallWidget>
 
@@ -336,7 +336,7 @@ async function onReport(frame: WallFrame) {
 
 <style scoped>
 .page { height: 100dvh; display: flex; flex-direction: column; }
-.stage { position: relative; flex: 1; min-height: 0; background: #07050A; }
+.stage { position: relative; flex: 1; min-height: 0; background: #07050A; --edge: 16px; }
 .controls {
   position: absolute;
   left: 16px;
