@@ -37,7 +37,13 @@ const props = withDefaults(defineProps<{
   suggest?: { x: number; y: number }[]
   /** The wall's filter: these frames glow in the colour, the rest fade back. */
   spotlight?: { ids: ReadonlySet<number>; color: string } | null
-}>(), { heartActive: false, highlightZone: null, spotlight: null, suggest: () => [], mine: () => [], celebrate: null, selectedId: null, placing: false, ghost: null, ghostSize: 1, initialCellPx: 32, showZones: false, closed: () => [] })
+  /**
+   * The wall's effects: the heartbeat, the glow around the heart, pulses and
+   * lit rims for new frames. Off: a still, plain wall. What the visitor asks
+   * for (the selected frame, the filter, "You", zones) still shows.
+   */
+  effects?: boolean
+}>(), { effects: true, heartActive: false, highlightZone: null, spotlight: null, suggest: () => [], mine: () => [], celebrate: null, selectedId: null, placing: false, ghost: null, ghostSize: 1, initialCellPx: 32, showZones: false, closed: () => [] })
 
 const emit = defineEmits<{
   select: [frame: WallFrame | null]
@@ -112,7 +118,11 @@ function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: n
 }
 
 // Users who ask for less motion get a still heart and no pulses.
-const reducedMotion = import.meta.client && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+const prefersStill = import.meta.client && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+/** Nothing moves: the system asks for less motion, or the effects switch is off. */
+const still = () => prefersStill || !props.effects
+/** No glow, no pulses, no lit new frames: the effects switch is off. */
+const calm = () => !props.effects
 
 // The living wall: a dark body, blood in the seams between the photos, vessels
 // running out from the heart and a pulse on every new frame.
@@ -191,10 +201,12 @@ function heartPath(ctx: CanvasRenderingContext2D, cx: number, cy: number, w: num
 function drawHeart(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, taken: boolean, b: number) {
   const r = Math.min(size * 0.08, 8)
 
-  // Glow, stronger on each beat.
+  // Glow, stronger on each beat (none with the effects off).
   ctx.save()
-  ctx.shadowColor = `rgba(255, 50, 80, ${0.4 + 0.45 * b})`
-  ctx.shadowBlur = clamp(size * (0.3 + 0.25 * b), 10, 90)
+  if (!calm()) {
+    ctx.shadowColor = `rgba(255, 50, 80, ${0.4 + 0.45 * b})`
+    ctx.shadowBlur = clamp(size * (0.3 + 0.25 * b), 10, 90)
+  }
   roundRectPath(ctx, x, y, size, size, r)
   if (taken) {
     ctx.strokeStyle = COLORS.heart
@@ -206,7 +218,7 @@ function drawHeart(ctx: CanvasRenderingContext2D, x: number, y: number, size: nu
   }
   ctx.restore()
 
-  if (!taken) {
+  if (!taken && !calm()) {
     const core = ctx.createRadialGradient(x + size / 2, y + size / 2, 0, x + size / 2, y + size / 2, size * 0.75)
     core.addColorStop(0, `rgba(255, 70, 95, ${0.35 + 0.35 * b})`)
     core.addColorStop(1, 'rgba(255, 70, 95, 0)')
@@ -219,6 +231,10 @@ function drawHeart(ctx: CanvasRenderingContext2D, x: number, y: number, size: nu
       ctx.fillStyle = '#FF3B52'
       ctx.fill()
     }
+  } else if (!taken && size >= 28) {
+    heartPath(ctx, x + size / 2, y + size / 2 + size * 0.03, size * 0.5)
+    ctx.fillStyle = '#FF3B52'
+    ctx.fill()
   }
 
   ctx.save()
@@ -233,8 +249,10 @@ function drawHeart(ctx: CanvasRenderingContext2D, x: number, y: number, size: nu
   if (size < 28) {
     const w = (20 + 3 * b)
     ctx.save()
-    ctx.shadowColor = `rgba(255, 50, 80, ${0.6 + 0.3 * b})`
-    ctx.shadowBlur = 14
+    if (!calm()) {
+      ctx.shadowColor = `rgba(255, 50, 80, ${0.6 + 0.3 * b})`
+      ctx.shadowBlur = 14
+    }
     heartPath(ctx, x + size / 2, y + size / 2 + 1, w)
     ctx.fillStyle = '#FF3B52'
     ctx.fill()
@@ -428,9 +446,9 @@ function draw() {
 
   const now = performance.now()
   while (beatQueue.length && beatQueue[0]! <= now) lastBeat = beatQueue.shift()!
-  if (!reducedMotion && now - lastBeat >= beatEvery * 1000) lastBeat = now
+  if (!still() && now - lastBeat >= beatEvery * 1000) lastBeat = now
   const dt = (now - lastBeat) / 1000
-  const b = reducedMotion ? 0 : beatShape(dt)
+  const b = still() ? 0 : beatShape(dt)
   const sx = (x: number) => (x - cx) * s + width / 2
   const sy = (y: number) => (y - cy) * s + height / 2
   const W = WALL_SIZE * s
@@ -457,15 +475,17 @@ function draw() {
   const hasClosed = props.closed.length > 0
 
   // Warmth around the heart, over the part of the wall that is open.
-  ctx.save()
-  clipOpen()
-  const warm = ctx.createRadialGradient(hcx, hcy, 0, hcx, hcy, reach)
-  warm.addColorStop(0, `rgba(200, 30, 60, ${0.32 + 0.1 * b})`)
-  warm.addColorStop(0.45, 'rgba(150, 24, 48, 0.13)')
-  warm.addColorStop(1, 'rgba(120, 20, 40, 0.04)')
-  ctx.fillStyle = warm
-  ctx.fillRect(ox, oy, ow, ow)
-  ctx.restore()
+  if (!calm()) {
+    ctx.save()
+    clipOpen()
+    const warm = ctx.createRadialGradient(hcx, hcy, 0, hcx, hcy, reach)
+    warm.addColorStop(0, `rgba(200, 30, 60, ${0.32 + 0.1 * b})`)
+    warm.addColorStop(0.45, 'rgba(150, 24, 48, 0.13)')
+    warm.addColorStop(1, 'rgba(120, 20, 40, 0.04)')
+    ctx.fillStyle = warm
+    ctx.fillRect(ox, oy, ow, ow)
+    ctx.restore()
+  }
 
   // Zones, when asked for: a light tint and a dashed border in the tier colour.
   if (props.showZones) {
@@ -493,6 +513,11 @@ function draw() {
     gridPath(ctx, sx, sy, x0, x1, y0, y1)
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.035)'
     ctx.stroke()
+    ctx.restore()
+  }
+  if (seam && !calm()) {
+    ctx.save()
+    ctx.lineWidth = seam
     clipOpen()
     const blood = ctx.createRadialGradient(hcx, hcy, 0, hcx, hcy, reach * 1.1)
     blood.addColorStop(0, `rgba(255, 70, 95, ${0.45 + 0.2 * b})`)
@@ -507,7 +532,7 @@ function draw() {
   // Rings: red from the heart on every beat; light pink from every new frame
   // bought by someone else.
   const rings: { x: number; y: number; r: number; a: number; rgb: string; w: number }[] = []
-  if (!reducedMotion) {
+  if (!still()) {
     const near = hcx > -500 && hcy > -500 && hcx < width + 500 && hcy < height + 500
     if (near && dt >= 0 && dt < BEAT_SHOW) {
       const ph = dt / BEAT_SHOW
@@ -582,7 +607,7 @@ function draw() {
   vessel.addColorStop(0, `rgba(255, ${60 + Math.round(50 * b)}, 88, 0.95)`)
   vessel.addColorStop(0.6, 'rgba(230, 50, 75, 0.6)')
   vessel.addColorStop(1, 'rgba(190, 40, 65, 0.35)')
-  ctx.strokeStyle = vessel
+  ctx.strokeStyle = calm() ? 'rgba(200, 45, 70, 0.55)' : vessel
   for (const w of VESSEL_WIDTHS) {
     ctx.lineWidth = vw * w
     vesselsPath(ctx, sx, sy, w, viewCells)
@@ -678,7 +703,7 @@ function draw() {
       ctx.restore()
     }
     const at = fresh.get(f.id)
-    if (at !== undefined && now >= at) lit.push({ f, k: 1 - (now - at) / FRESH_MS })
+    if (at !== undefined && now >= at && !calm()) lit.push({ f, k: 1 - (now - at) / FRESH_MS })
   }
   for (const [id, at] of fresh) if (now - at > FRESH_MS) fresh.delete(id)
   ctx.globalAlpha = 1
@@ -793,7 +818,7 @@ function draw() {
     const px = sx(f.x), py = sy(f.y), size = Math.max(f.size * s, 3)
     const fcx = px + size / 2, fcy = py + size / 2
     // The ceremony: three gold rings leave the frame itself, clearly not from the heart.
-    if (ceremony?.id === f.id && !reducedMotion) {
+    if (ceremony?.id === f.id && !still()) {
       ctx.save()
       for (let k = 0; k < 3; k++) {
         const age = (now - ceremony.at - 400 - k * 1100) / 1000
@@ -910,8 +935,8 @@ function draw() {
     clearTimeout(sleepTimer)
     sleepTimer = null
   }
-  if (reducedMotion) {
-    if (fresh.size || ceremony || zoneTip) sleepTimer = setTimeout(requestDraw, 1000)
+  if (still()) {
+    if ((!calm() && fresh.size) || ceremony || zoneTip) sleepTimer = setTimeout(requestDraw, 1000)
   } else if (pulses.length || fresh.size || ceremony || zoneTip || (heartVisible && dt < BEAT_SHOW)) {
     requestDraw()
   } else {
@@ -1183,7 +1208,7 @@ watch(() => props.frames, (list) => {
     // Only other people's frames pulse; yours are marked "You" instead.
     if (f.number === null || mineSet.has(f.id)) continue
     fresh.set(f.id, at)
-    if (!reducedMotion) {
+    if (!still()) {
       pulses.push({ x: f.x + f.size / 2, y: f.y + f.size / 2, at })
       beatQueue.push(at)
     }
@@ -1205,9 +1230,18 @@ watch(() => [props.celebrate, props.frames] as const, ([id]) => {
   if (!id || ceremony?.id === id || !props.frames.some((f) => f.id === id)) return
   ceremony = { id, at: performance.now() }
   // The heart answers with a beat of its own.
-  if (!reducedMotion) lastBeat = performance.now() + 300
+  if (!still()) lastBeat = performance.now() + 300
   requestDraw()
 }, { immediate: true })
+
+// Effects off: waves already on their way are dropped, not paused.
+watch(() => props.effects, (on) => {
+  if (!on) {
+    pulses.length = 0
+    beatQueue.length = 0
+  }
+  requestDraw()
+})
 
 watch(
   () => [props.selectedId, props.placing, props.mine, props.heartActive, props.highlightZone, props.frames, props.showZones, props.closed, props.spotlight, props.suggest,
