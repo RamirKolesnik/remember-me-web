@@ -101,7 +101,8 @@ const arrow = computed(() => (props.edge === 'right') !== hidden.value ? 'M9 6l6
         </button>
       </div>
     </Transition>
-    <Transition name="ww-tab">
+    <!-- The tab only slides in; it leaves at once, so it is not measured with the panel. -->
+    <Transition name="ww-tab" @leave="(_el: Element, done: () => void) => done()">
       <button v-show="tabShown" ref="tabEl" type="button" class="ww__tab panel" :aria-label="`Show ${label}`" :title="label" @click="show">
         <WidgetIcon :icon="icon" :size="18" />
       </button>
