@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import type { WallFrame } from '~/composables/useWall'
-import type { WallFilter } from '~/shared/tags'
+import type { TagId } from '~/shared/wall'
 
 const props = defineProps<{ frame: WallFrame }>()
-const emit = defineEmits<{ close: []; report: [frame: WallFrame]; filter: [filter: WallFilter] }>()
+const emit = defineEmits<{ close: []; report: [frame: WallFrame]; filter: [tag: TagId] }>()
 const number = computed(() => props.frame.number ? `Heartbeat #${props.frame.number.toLocaleString('en-US')} · ` : '')
 </script>
 

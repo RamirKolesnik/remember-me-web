@@ -1,22 +1,23 @@
 <script setup lang="ts">
 // The zone of a frame, in the zone's colour, then its tags: Founder, first
 // wave, first in zone, last spot, lucky number, heart neighbour.
-// clickable: each pill filters the wall to frames like this one.
+// clickable: tags the filter bar has (not the zone, not First wave) filter the wall.
 // compact: tags shrink to their icon (feed and search rows).
 import { isHeart, tagsOf, zoneOfFrame } from '~/shared/wall'
 import { tierOf } from '~/shared/tiers'
-import { TAG_STYLE, type WallFilter } from '~/shared/tags'
+import { isFilterTag, TAG_STYLE } from '~/shared/tags'
+import type { TagId } from '~/shared/wall'
 
 const props = withDefaults(defineProps<{
   frame: { number: number | null; x: number; y: number; size: number }
   clickable?: boolean
   compact?: boolean
 }>(), { clickable: false, compact: false })
-const emit = defineEmits<{ filter: [filter: WallFilter] }>()
+const emit = defineEmits<{ filter: [tag: TagId] }>()
 
 const { milestones } = usePricing()
 
-interface Pill { key: string; label: string; icon: string; color: string; title: string; filter: WallFilter | null }
+interface Pill { key: string; label: string; icon: string; color: string; title: string; filter: TagId | null }
 
 const pills = computed<Pill[]>(() => {
   const f = props.frame
@@ -26,11 +27,11 @@ const pills = computed<Pill[]>(() => {
   } else {
     const z = zoneOfFrame(f.x, f.y, f.size)
     const t = tierOf(z.id)
-    list.push({ key: 'zone', label: t.name, icon: '●', color: t.accent, title: `In the ${t.name}`, filter: { kind: 'zone', id: z.id } })
+    list.push({ key: 'zone', label: t.name, icon: '●', color: t.accent, title: `In the ${t.name}`, filter: null })
   }
   for (const tag of tagsOf(f, milestones.value)) {
     const st = TAG_STYLE[tag.id]
-    list.push({ key: tag.id, label: tag.label, icon: st.icon, color: st.color, title: tag.title, filter: { kind: 'tag', id: tag.id } })
+    list.push({ key: tag.id, label: tag.label, icon: st.icon, color: st.color, title: tag.title, filter: isFilterTag(tag.id) ? tag.id : null })
   }
   return list
 })

@@ -22,6 +22,8 @@
   --heart: #FF3B52;
   --heart-soft: rgba(255, 59, 82, 0.15);
   --mine: #FFD27A;
+  /* The tag filter's rim on the wall (SPOTLIGHT_COLOR in shared/tags.ts). */
+  --spot: #FFE14D;
   --ok: #8BDB96;
   --ok-soft: rgba(139, 219, 150, 0.14);
   --danger: #FF8A8A;

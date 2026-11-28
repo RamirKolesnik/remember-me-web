@@ -751,10 +751,11 @@ function draw() {
   }
 
   // Frames this visitor owns: a thin gold rim and, close enough, "You".
-  const mineSet = props.mine.length ? new Set(props.mine) : null
+  // While the tag filter is on, its yellow rims are the only ones: "You" steps aside.
+  const mineSet = props.mine.length && !spot ? new Set(props.mine) : null
   if (ceremony && now - ceremony.at > CEREMONY_MS) ceremony = null
   for (const f of props.frames) {
-    const isMine = mineSet?.has(f.id) || ceremony?.id === f.id
+    const isMine = mineSet?.has(f.id) || (!spot && ceremony?.id === f.id)
     if (!isMine) continue
     if (f.x + f.size < x0 || f.x > x1 || f.y + f.size < y0 || f.y > y1) continue
     const px = sx(f.x), py = sy(f.y), size = Math.max(f.size * s, 3)
