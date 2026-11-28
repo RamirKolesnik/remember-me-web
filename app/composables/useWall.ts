@@ -1,3 +1,4 @@
+import { demoCountry } from '~/shared/countries'
 import { overlapsHeart, WALL_SIZE, type FrameSize } from '~/shared/wall'
 
 export interface WallFrame {
@@ -16,6 +17,8 @@ export interface WallFrame {
   /** When the frame went live (ms), for "5 min ago". Null on demo frames. */
   liveAt: number | null
   photoUrl: string | null
+  /** ISO country code of the buyer, null when unknown. */
+  country: string | null
 }
 
 export interface ApiFrame {
@@ -27,6 +30,7 @@ export interface ApiFrame {
   name: string
   note: string
   photoUrl: string | null
+  country?: string | null
   placedAt: string | null
 }
 
@@ -49,6 +53,7 @@ export function fromApi(f: ApiFrame): WallFrame {
     id: f.id, number: f.number ?? null, x: f.x, y: f.y, size: f.size as FrameSize, name: f.name, note: f.note,
     color, ink, initials: initialsOf(f.name), placedAt: monthOf(f.placedAt),
     liveAt: f.placedAt ? Date.parse(f.placedAt) : null, photoUrl: f.photoUrl,
+    country: typeof f.country === 'string' && /^[A-Z]{2}$/.test(f.country) ? f.country : null,
   }
 }
 
@@ -91,6 +96,7 @@ function buildDemoFrames(): WallFrame[] {
       note: NOTES[Math.floor(rnd() * NOTES.length)]!.replace('{h}', handle).replace('{n}', first),
       color, ink, initials: first[0]! + last[0]!,
       placedAt: `${['Sep', 'Oct', 'Nov'][Math.floor(rnd() * 3)]} 2026`, liveAt: null, photoUrl: null,
+      country: demoCountry(frames.length + 1),
     })
   }
   return frames

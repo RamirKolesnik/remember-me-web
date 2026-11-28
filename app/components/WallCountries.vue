@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { countryTable } from '~/shared/countries'
+import { countryPlace, countryTable, ordinal, searchCountries } from '~/shared/countries'
 import { formatShare } from '~/shared/stats'
 
 // Where the wall's people come from: the top countries by share of frames.
@@ -7,7 +7,7 @@ import { formatShare } from '~/shared/stats'
 // is always open.
 const props = withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false })
 
-const { stats } = useCountries()
+const { stats, mine } = useCountries()
 const SHORT = 5
 const LONG = 10
 const all = ref(false)
@@ -19,6 +19,39 @@ const pct = (share: number, known: number) => formatShare(Math.round(share * kno
 const barOf = (count: number) => {
   const lead = table.value?.top[0]?.count ?? 0
   return lead > 0 ? `max(3px, ${(count / lead) * 100}%)` : '0'
+}
+
+// Search: type a country, pick it, see where it stands even outside the top.
+// Until something is picked, the visitor's own country is shown.
+const query = ref('')
+const active = ref(0)
+const picked = ref<string | null>(null)
+const input = ref<HTMLInputElement | null>(null)
+const hits = computed(() => searchCountries(query.value, 5))
+watch(query, () => { active.value = 0 })
+const placeOf = (code: string) => (stats.value ? countryPlace(stats.value, code) : null)
+const shown = computed(() => picked.value ?? mine.value)
+const place = computed(() => (shown.value ? placeOf(shown.value) : null))
+const isMine = computed(() => !!shown.value && shown.value === mine.value)
+function pick(code: string) {
+  picked.value = code
+  query.value = ''
+  input.value?.blur()
+}
+function clearPick() {
+  picked.value = null
+  query.value = ''
+}
+function onKey(e: KeyboardEvent) {
+  const n = hits.value.length
+  if (e.key === 'ArrowDown' && n) { e.preventDefault(); active.value = (active.value + 1) % n }
+  else if (e.key === 'ArrowUp' && n) { e.preventDefault(); active.value = (active.value - 1 + n) % n }
+  else if (e.key === 'Enter' && n) { e.preventDefault(); pick(hits.value[active.value]!) }
+  else if (e.key === 'Escape') { e.stopPropagation(); if (query.value) query.value = ''; else input.value?.blur() }
+}
+const hitText = (code: string) => {
+  const p = placeOf(code)
+  return p?.rank ? `${ordinal(p.rank)} · ${pct(p.share, table.value?.known ?? 0)}` : 'No one yet'
 }
 
 const STORAGE_KEY = 'rm.countries.collapsed'
@@ -64,8 +97,68 @@ const open = computed(() => props.embedded || !collapsed.value)
         <p class="cty__sum">
           {{ fmt(table.known) }} {{ table.known === 1 ? 'person' : 'people' }} from {{ fmt(table.countryCount) }} {{ table.countryCount === 1 ? 'country' : 'countries' }}
         </p>
-        <ol class="cty__list">
-          <li v-for="(r, i) in table.top" :key="r.code" class="cty__row" :title="`${r.name}: ${fmt(r.count)} ${r.count === 1 ? 'frame' : 'frames'}`">
+        <div class="cty__search" role="combobox" :aria-expanded="!!query && hits.length > 0" aria-haspopup="listbox" aria-owns="countries-hits">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
+          <input
+            ref="input"
+            v-model="query"
+            type="search"
+            class="cty__input"
+            placeholder="Find your country"
+            aria-label="Find a country"
+            aria-autocomplete="list"
+            aria-controls="countries-hits"
+            :aria-activedescendant="query && hits.length ? `cty-hit-${hits[active]}` : undefined"
+            autocomplete="off"
+            spellcheck="false"
+            @keydown="onKey"
+          >
+          <button v-if="query" type="button" class="cty__x" aria-label="Clear search" @click="query = ''; input?.focus()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          </button>
+        </div>
+
+        <template v-if="query">
+          <ul v-if="hits.length" id="countries-hits" class="cty__hits" role="listbox" aria-label="Countries found">
+            <li
+              v-for="(code, i) in hits"
+              :id="`cty-hit-${code}`"
+              :key="code"
+              role="option"
+              :aria-selected="i === active"
+              class="cty__hit"
+              :class="{ 'cty__hit--active': i === active }"
+              @mousedown.prevent="pick(code)"
+              @mouseenter="active = i"
+            >
+              <span class="fi cty__flag" :class="`fi-${code.toLowerCase()}`" aria-hidden="true" />
+              <span class="cty__name">{{ placeOf(code)?.name }}</span>
+              <span class="cty__hitmeta" :class="{ 'cty__hitmeta--none': !placeOf(code)?.rank }">{{ hitText(code) }}</span>
+            </li>
+          </ul>
+          <p v-else class="cty__empty">No country called “{{ query.trim() }}”.</p>
+        </template>
+
+        <div v-else-if="place" class="cty__me" :class="{ 'cty__me--none': !place.rank }" role="status">
+          <span class="fi cty__flag cty__flag--big" :class="`fi-${place.code.toLowerCase()}`" aria-hidden="true" />
+          <span class="cty__me-text">
+            <span class="cty__me-label">{{ isMine ? 'Your country' : place.name }}</span>
+            <template v-if="place.rank">
+              <b class="cty__me-main">{{ isMine ? `${place.name} is ${ordinal(place.rank)}` : `${ordinal(place.rank)} of ${fmt(place.of)}` }}</b>
+              <span class="cty__me-sub">{{ fmt(place.count) }} {{ place.count === 1 ? 'person' : 'people' }} · {{ pct(place.share, table.known) }}</span>
+            </template>
+            <template v-else>
+              <b class="cty__me-main">{{ isMine ? `No one from ${place.name} yet` : 'No one here yet' }}</b>
+              <NuxtLink to="/immortalize" class="cty__me-cta">Be the first →</NuxtLink>
+            </template>
+          </span>
+          <button v-if="picked" type="button" class="cty__x" aria-label="Back to your country" @click="clearPick">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          </button>
+        </div>
+
+        <ol v-show="!query" class="cty__list">
+          <li v-for="(r, i) in table.top" :key="r.code" class="cty__row" :class="{ 'cty__row--me': r.code === shown }" :title="`${r.name}: ${fmt(r.count)} ${r.count === 1 ? 'frame' : 'frames'}`">
             <span class="cty__rank">{{ i + 1 }}</span>
             <span class="fi cty__flag" :class="`fi-${r.code.toLowerCase()}`" aria-hidden="true" />
             <span class="cty__name">{{ r.name }}</span>
@@ -73,11 +166,11 @@ const open = computed(() => props.embedded || !collapsed.value)
             <span class="cty__bar" aria-hidden="true"><i :style="{ width: barOf(r.count) }" :class="{ 'cty__bar--lead': i === 0 }" /></span>
           </li>
         </ol>
-        <p v-if="table.rest" class="cty__rest">
+        <p v-if="table.rest && !query" class="cty__rest">
           <span>+{{ fmt(table.rest.countries) }} more {{ table.rest.countries === 1 ? 'country' : 'countries' }}</span>
           <b>{{ pct(table.rest.share, table.known) }}</b>
         </p>
-        <button v-if="canMore" type="button" class="cty__more" @click="all = !all">
+        <button v-if="canMore && !query" type="button" class="cty__more" @click="all = !all">
           {{ all ? `Show top ${SHORT}` : `Show top ${LONG}` }}
         </button>
       </template>
@@ -170,7 +263,92 @@ const open = computed(() => props.embedded || !collapsed.value)
   cursor: pointer;
 }
 .cty__more:hover { text-decoration: underline; }
+/* Country search */
+.cty__search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 6px 0 9px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  transition: border-color 0.15s;
+}
+.cty__search:focus-within { border-color: var(--accent-ink); color: var(--ink-2); }
+.cty__input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+}
+.cty__input::placeholder { color: var(--muted); }
+.cty__input::-webkit-search-cancel-button { display: none; }
+.cty__x {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.cty__x:hover { background: var(--line-soft); color: var(--ink); }
+.cty__hits { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
+.cty__hit {
+  display: grid;
+  grid-template-columns: 18px 1fr auto;
+  align-items: center;
+  gap: 6px;
+  margin: 0 -6px;
+  padding: 5px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.cty__hit--active { background: var(--line-soft); }
+.cty__hitmeta { font-size: 11px; font-weight: 600; color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cty__hitmeta--none { font-weight: 400; color: var(--muted); }
+/* The picked (or own) country: where it stands, even outside the top. */
+.cty__me {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 8px 8px 9px;
+  border-radius: 9px;
+  background: var(--accent-soft);
+  border: 1px solid rgba(255, 59, 92, 0.28);
+}
+.cty__me--none { background: var(--line-soft); border-color: var(--line); }
+.cty__flag.cty__flag--big { width: 26px; height: 19.5px; border-radius: 3px; }
+.cty__me-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.cty__me-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cty__me-main { font-size: 12px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.cty__me-sub { font-size: 11px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.cty__me-cta { font-size: 11px; font-weight: 600; color: var(--accent-ink); text-decoration: none; }
+.cty__me-cta:hover { text-decoration: underline; }
+.cty__row--me .cty__name { color: var(--ink); font-weight: 600; }
+.cty__row--me .cty__rank { color: var(--accent-ink); }
+@media (max-width: 720px) {
+  .cty__input { font-size: 16px; } /* no zoom-in on focus on iOS */
+  .cty__search { height: 40px; }
+  .cty__hit { padding: 9px 6px; }
+}
 @media (prefers-reduced-motion: reduce) {
+  .cty__search { transition: none; }
   .cty__chev { transition: none; }
 }
 </style>

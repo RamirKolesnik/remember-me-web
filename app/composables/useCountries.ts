@@ -1,11 +1,14 @@
-import { demoStats, type CountryStats } from '~/shared/countries'
+import { countryFromLocale, demoStats, type CountryStats } from '~/shared/countries'
 
 const POLL_MS = 60_000
 
 // One poller per browser tab. Countries change slowly: once a minute is plenty.
 const state = {
   stats: shallowRef<CountryStats | null>(null),
+  /** The visitor's own country: from the API (by IP), else the browser language. */
+  mine: shallowRef<string | null>(null),
   started: false,
+  mineAsked: false,
   busy: false,
 }
 
@@ -35,6 +38,21 @@ export function useCountries() {
     setInterval(() => { if (document.visibilityState === 'visible') refresh() }, POLL_MS)
   }
 
+  async function findMine() {
+    if (state.mineAsked) return
+    state.mineAsked = true
+    const guess = countryFromLocale(navigator.languages?.find((l) => countryFromLocale(l)) ?? navigator.language)
+    state.mine.value = guess
+    if (!api.live) return
+    try {
+      const res = await api.get<{ country: string | null }>('/me/country')
+      if (res.country) state.mine.value = res.country
+    } catch {
+      // The browser's guess stays.
+    }
+  }
+  if (import.meta.client) findMine()
+
   const stats = computed<CountryStats | null>(() => (api.live ? state.stats.value : demoStats(frames.value)))
-  return { stats, refresh }
+  return { stats, mine: state.mine, refresh }
 }

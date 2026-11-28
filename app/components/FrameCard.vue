@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { countryName } from '~/shared/countries'
 import type { WallFrame } from '~/composables/useWall'
 import { isHeart, isFounder, luckyKind, tagsOf, type TagId } from '~/shared/wall'
 import { frameAccent } from '~/shared/tags'
@@ -117,6 +118,10 @@ const nearby = () => navigateTo({ path: '/immortalize', query: { near: `${props.
       </div>
       <div class="card__who">
         <span class="card__name">{{ frame.name }}</span>
+        <span v-if="frame.country" class="card__from">
+          <span class="fi card__flag" :class="`fi-${frame.country.toLowerCase()}`" aria-hidden="true" />
+          {{ countryName(frame.country) }}
+        </span>
         <span v-if="lucky" class="card__lucky">{{ numberText }}</span>
         <span class="card__meta">
           <template v-if="numberText && !lucky">{{ numberText }} · </template>{{ frame.placedAt }}
@@ -189,6 +194,15 @@ const nearby = () => navigateTo({ path: '/immortalize', query: { near: `${props.
 .card__avatar img { width: 100%; height: 100%; object-fit: cover; }
 .card__who { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .card__name { font-size: 17px; font-weight: 600; overflow-wrap: anywhere; }
+.card__from { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-2); }
+.card__flag {
+  width: 20px;
+  height: 15px;
+  line-height: 1;
+  border-radius: 2px;
+  flex: none;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14);
+}
 .card__meta { font-size: 12px; color: var(--muted); }
 .card__note { margin: 0; font-size: 15px; line-height: 1.5; color: var(--ink-2); overflow-wrap: anywhere; }
 

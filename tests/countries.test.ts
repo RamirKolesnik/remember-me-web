@@ -35,3 +35,44 @@ test('demo frames keep their country and follow the pool', () => {
   const top = countryTable(s, 1).top[0]!
   assert.equal(top.code, 'US')
 })
+
+import { ALL_COUNTRIES, countryFromLocale, countryPlace, ordinal, searchCountries } from '../app/shared/countries.ts'
+
+test('every country code is listed once and has a name', () => {
+  assert.equal(new Set(ALL_COUNTRIES).size, ALL_COUNTRIES.length)
+  assert.ok(ALL_COUNTRIES.length >= 249)
+  for (const c of ALL_COUNTRIES) assert.match(c, /^[A-Z]{2}$/)
+  for (const c of ['US', 'UZ', 'KZ', 'DE']) assert.notEqual(countryName(c), c)
+})
+
+test('the country search finds names, codes, aliases and ignores accents', () => {
+  assert.equal(searchCountries('uzb')[0], 'UZ')
+  assert.equal(searchCountries('Uz')[0], 'UZ')
+  assert.equal(searchCountries('usa')[0], 'US')
+  assert.equal(searchCountries('uk')[0], 'GB')
+  assert.equal(searchCountries('germ')[0], 'DE')
+  assert.ok(searchCountries('kingdom').includes('GB'))
+  assert.ok(searchCountries('cote').includes('CI'))
+  assert.deepEqual(searchCountries('  '), [])
+  assert.deepEqual(searchCountries('qqqq'), [])
+  assert.ok(searchCountries('a', 6).length <= 6)
+})
+
+test('a country knows its place on the wall', () => {
+  const stats = { total: 10, unknown: 0, countries: [{ code: 'US', count: 5 }, { code: 'DE', count: 2 }, { code: 'BR', count: 2 }, { code: 'UZ', count: 1 }] }
+  assert.deepEqual(countryPlace(stats, 'US'), { code: 'US', name: 'United States', rank: 1, count: 5, share: 0.5, of: 4 })
+  assert.equal(countryPlace(stats, 'BR').rank, 2) // tied with DE
+  assert.equal(countryPlace(stats, 'UZ').rank, 4)
+  const none = countryPlace(stats, 'IS')
+  assert.equal(none.rank, null)
+  assert.equal(none.count, 0)
+})
+
+test('ordinals and locales', () => {
+  assert.deepEqual([1, 2, 3, 4, 11, 12, 13, 21, 22, 101, 111].map(ordinal),
+    ['1st', '2nd', '3rd', '4th', '11th', '12th', '13th', '21st', '22nd', '101st', '111th'])
+  assert.equal(countryFromLocale('en-US'), 'US')
+  assert.equal(countryFromLocale('uz-Latn-UZ'), 'UZ')
+  assert.equal(countryFromLocale('ru'), null)
+  assert.equal(countryFromLocale(undefined), null)
+})
