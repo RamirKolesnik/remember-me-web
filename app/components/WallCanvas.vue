@@ -25,7 +25,7 @@ const props = withDefaults(defineProps<{
   showZones?: boolean
   /** Rings not on sale yet: hatched, fenced off and labelled. */
   closed?: ClosedZone[]
-  /** Frames this visitor bought (remembered in the browser): marked "You". */
+  /** Frames this visitor bought (remembered in the browser): new ones do not pulse for them. */
   mine?: number[]
   /** A frame just bought by this visitor: it gets its own gold heartbeat. */
   celebrate?: number | null
@@ -40,7 +40,7 @@ const props = withDefaults(defineProps<{
   /**
    * The wall's effects: the heartbeat, the glow around the heart, pulses and
    * lit rims for new frames. Off: a still, plain wall. What the visitor asks
-   * for (the selected frame, the filter, "You", zones) still shows.
+   * for (the selected frame, the filter, zones) still shows.
    */
   effects?: boolean
 }>(), { effects: true, heartActive: false, highlightZone: null, spotlight: null, suggest: () => [], mine: () => [], celebrate: null, selectedId: null, placing: false, ghost: null, ghostSize: 1, initialCellPx: 32, showZones: false, closed: () => [] })
@@ -677,7 +677,7 @@ function draw() {
       ctx.textBaseline = 'middle'
       ctx.fillText(f.initials, px + size / 2, py + size / 2 + 1)
     }
-    // Your frames keep their gold rim and do not react to other people's pulses.
+    // Your frames do not react to other people's pulses.
     if (rings.length && size >= 6 && !ownIds?.has(f.id)) {
       let a = 0
       for (const ring of rings) {
@@ -807,13 +807,12 @@ function draw() {
     ctx.fillText(label, lx + tw / 2, ly + 13.5)
   }
 
-  // Frames this visitor owns: a thin gold rim and, close enough, "You".
-  // While the tag filter is on, its yellow rims are the only ones: "You" steps aside.
-  const mineSet = props.mine.length && !spot ? new Set(props.mine) : null
+  // A frame this visitor just bought: a gold rim and its number for a few
+  // seconds. Their frames carry no lasting mark: "My" in the filter bar finds them.
+  // While a filter is on, its yellow rims are the only ones.
   if (ceremony && now - ceremony.at > CEREMONY_MS) ceremony = null
   for (const f of props.frames) {
-    const isMine = mineSet?.has(f.id) || (!spot && ceremony?.id === f.id)
-    if (!isMine) continue
+    if (spot || ceremony?.id !== f.id) continue
     if (f.x + f.size < x0 || f.x > x1 || f.y + f.size < y0 || f.y > y1) continue
     const px = sx(f.x), py = sy(f.y), size = Math.max(f.size * s, 3)
     const fcx = px + size / 2, fcy = py + size / 2
@@ -834,16 +833,14 @@ function draw() {
     }
     ctx.save()
     ctx.shadowColor = 'rgba(255, 200, 100, 0.8)'
-    ctx.shadowBlur = ceremony?.id === f.id ? 16 : 6
+    ctx.shadowBlur = 16
     ctx.strokeStyle = MINE_COLOR
-    ctx.lineWidth = ceremony?.id === f.id ? 3 : 2
+    ctx.lineWidth = 3
     roundRectPath(ctx, px - 2, py - 2, size + 4, size + 4, 4)
     ctx.stroke()
     ctx.restore()
-    if (s >= 10) {
-      const label = ceremony?.id === f.id && f.number !== null
-        ? `You · Heartbeat #${f.number.toLocaleString('en-US')}`
-        : 'You'
+    if (s >= 10 && f.number !== null) {
+      const label = `Heartbeat #${f.number.toLocaleString('en-US')}`
       ctx.save()
       ctx.font = '600 12px Inter, system-ui, sans-serif'
       const tw = ctx.measureText(label).width + 20
@@ -1205,7 +1202,7 @@ watch(() => props.frames, (list) => {
   for (const f of list) {
     if (known.has(f.id)) continue
     known.add(f.id)
-    // Only other people's frames pulse; yours are marked "You" instead.
+    // Only other people's frames pulse; yours get their own ceremony.
     if (f.number === null || mineSet.has(f.id)) continue
     fresh.set(f.id, at)
     if (!still()) {

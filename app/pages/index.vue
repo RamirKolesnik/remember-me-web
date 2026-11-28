@@ -54,19 +54,26 @@ const heartActive = computed(() => heartOpen.value || (!!selected.value && selec
 const { pricing, milestones } = usePricing()
 
 // The tag filter: a chip in the bar (or a tag on a frame card) lights up every
-// frame with that tag in yellow. The visitor's own gold "You" rims step aside.
+// frame with that tag in yellow.
 const filter = ref<TagId | null>(null)
 const counts = computed(() => tagCounts(frames.value, milestones.value))
 // Or a country, picked in the Countries widget: the same yellow light.
 // One filter at a time: a tag clears the country and the other way round.
 const countryFilter = ref<string | null>(null)
+// Or "My": the frames this visitor bought, remembered in the browser.
+const myFilter = ref(false)
+const myFrames = computed(() => {
+  const own = new Set(mine.value)
+  return frames.value.filter((f) => own.has(f.id))
+})
 const filtered = computed(() => {
+  if (myFilter.value) return myFrames.value
   const id = filter.value
   if (id) return frames.value.filter((f) => hasTag(f, id, milestones.value))
   const c = countryFilter.value
   return c ? frames.value.filter((f) => f.country === c) : []
 })
-const spotlight = computed(() => filter.value || countryFilter.value
+const spotlight = computed(() => filter.value || countryFilter.value || myFilter.value
   ? { ids: new Set(filtered.value.map((f) => f.id)), color: SPOTLIGHT_COLOR }
   : null)
 // The view stays where the visitor is: the filter only lights frames up.
@@ -74,6 +81,7 @@ function applyFilter(id: TagId | null) {
   filter.value = id
   if (id) {
     countryFilter.value = null
+    myFilter.value = false
     onSelect(null)
   }
 }
@@ -84,6 +92,7 @@ function applyCountry(code: string | null) {
   countryFilter.value = code
   if (code) {
     filter.value = null
+    myFilter.value = false
     onSelect(null)
     // On a phone the sheet would cover the wall: close it to show the light.
     if (mobile.value) openWidget.value = null
@@ -93,6 +102,15 @@ function onKey(e: KeyboardEvent) {
   if (e.key !== 'Escape' || selected.value) return
   if (filter.value) filter.value = null
   else if (countryFilter.value) countryFilter.value = null
+  else if (myFilter.value) myFilter.value = false
+}
+function applyMine(on: boolean) {
+  myFilter.value = on && myFrames.value.length > 0
+  if (myFilter.value) {
+    filter.value = null
+    countryFilter.value = null
+    onSelect(null)
+  }
 }
 const closed = computed<ClosedZone[]>(() => {
   const p = pricing.value
@@ -245,7 +263,7 @@ async function onReport(frame: WallFrame) {
 
       <WallStatus />
 
-      <TagFilterBar class="tagbar" :active="filter" :counts="counts" :country="litCountry" @pick="applyFilter" @clear-country="applyCountry(null)" />
+      <TagFilterBar class="tagbar" :active="filter" :counts="counts" :country="litCountry" :mine="myFrames.length" :mine-on="myFilter" @pick="applyFilter" @clear-country="applyCountry(null)" @mine="applyMine" />
 
       <WallWidget id="search" class="w-search" label="Find a frame" icon="search" :sheet="false">
         <WallSearch :preview="byNumber" :find="goToNumber" />
