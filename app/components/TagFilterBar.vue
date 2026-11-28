@@ -11,11 +11,16 @@ const props = withDefaults(defineProps<{
   counts: Record<TagId, number>
   /** A country lit from the Countries widget: shown as a chip at the start. */
   country?: { code: string; name: string; count: number } | null
-}>(), { country: null })
-const emit = defineEmits<{ pick: [tag: TagId | null]; clearCountry: [] }>()
+  /** How many frames this visitor bought (remembered in the browser). */
+  mine?: number
+  /** "My" is on: the visitor's own frames are lit. */
+  mineOn?: boolean
+}>(), { country: null, mine: 0, mineOn: false })
+const emit = defineEmits<{ pick: [tag: TagId | null]; clearCountry: []; mine: [on: boolean] }>()
 function clearAll() {
   if (props.active) emit('pick', null)
   if (props.country) emit('clearCountry')
+  if (props.mineOn) emit('mine', false)
 }
 
 const fmt = (n: number) => n.toLocaleString('en-US')
@@ -70,7 +75,7 @@ watch(() => props.active, (id) => nextTick(() => {
 <template>
   <nav class="bar" aria-label="Filter the wall by tag">
     <!-- Outside the scrolling row, so it is always in reach. -->
-    <button v-if="active || country" type="button" class="chip chip--clear" aria-label="Clear the filter" @click="clearAll">
+    <button v-if="active || country || mineOn" type="button" class="chip chip--clear" aria-label="Clear the filter" @click="clearAll">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
     </button>
     <button
@@ -87,6 +92,18 @@ watch(() => props.active, (id) => nextTick(() => {
     </button>
     <div class="row" :class="{ 'row--left': canLeft, 'row--right': canRight }">
       <div ref="track" class="track" @scroll.passive="measure" @wheel="onWheel">
+        <button
+          type="button"
+          class="chip chip--my"
+          :class="{ 'chip--on': mineOn, 'chip--none': !mine }"
+          :aria-pressed="mineOn"
+          :title="mine ? 'Show your frames on the wall' : 'You have no frame on the wall yet (in this browser)'"
+          @click="emit('mine', !mineOn)"
+        >
+          <span class="chip__icon" aria-hidden="true">●</span>
+          My
+          <span class="chip__n">{{ fmt(mine) }}</span>
+        </button>
         <button
           v-for="id in FILTER_TAGS"
           :key="id"
@@ -183,6 +200,7 @@ watch(() => props.active, (id) => nextTick(() => {
   text-align: center;
 }
 .chip--none { opacity: 0.45; }
+.chip--my { --tag: #FFD27A; }
 .chip--on {
   border-color: var(--spot);
   background: color-mix(in srgb, var(--spot) 16%, transparent);
