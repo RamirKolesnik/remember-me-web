@@ -46,7 +46,7 @@ function pick(code: string) {
   else if (props.active) emit('filter', null)
 }
 /** A row of the top or the plaque: on, or off when already lit. */
-function toggle(code: string) {
+function toggleCountry(code: string) {
   if (props.active === code) emit('filter', null)
   else pick(code)
 }
@@ -164,7 +164,7 @@ const open = computed(() => props.embedded || !collapsed.value)
                 class="cty__light"
                 :class="{ 'cty__light--on': active === place.code }"
                 :aria-pressed="active === place.code"
-                @click="toggle(place.code)"
+                @click="toggleCountry(place.code)"
               >
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path v-if="active === place.code" d="M6 6l12 12M18 6L6 18" />
@@ -191,7 +191,7 @@ const open = computed(() => props.embedded || !collapsed.value)
               :class="{ 'cty__row--me': r.code === shown, 'cty__row--lit': r.code === active }"
               :aria-pressed="r.code === active"
               :title="`${r.name}: ${fmt(r.count)} ${r.count === 1 ? 'frame' : 'frames'}. ${r.code === active ? 'Click to clear' : 'Click to light them up'}`"
-              @click="toggle(r.code)"
+              @click="toggleCountry(r.code)"
             >
               <span class="cty__rank">{{ i + 1 }}</span>
               <span class="fi cty__flag" :class="`fi-${r.code.toLowerCase()}`" aria-hidden="true" />
