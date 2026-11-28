@@ -336,7 +336,8 @@ async function onReport(frame: WallFrame) {
 
 <style scoped>
 .page { height: 100dvh; display: flex; flex-direction: column; }
-.stage { position: relative; flex: 1; min-height: 0; background: #07050A; --edge: 16px; }
+/* Clipped: widgets slide out past the screen edge without a sideways scroll. */
+.stage { position: relative; flex: 1; min-height: 0; background: #07050A; --edge: 16px; overflow: hidden; }
 .controls {
   position: absolute;
   left: 16px;

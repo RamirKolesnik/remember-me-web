@@ -24,22 +24,69 @@ const isOpen = computed(() => open.value === props.id)
 const toggle = () => { open.value = isOpen.value ? null : props.id }
 
 // Desktop: slid off the screen or not. Content stays mounted either way.
+// Hiding: the panel slides out past the edge while keeping its place, then
+// its space shrinks smoothly to the tab. Showing: the tab goes, the space
+// grows to the panel while it slides in. Neighbours move, but never jump.
 const hiddenMap = useHiddenWidgets()
 const hidden = computed(() => !!hiddenMap.value[props.id])
+/** The tab sticks out of the edge (only once the panel has left). */
+const tabShown = ref(false)
+const box = ref<HTMLDivElement | null>(null)
+const panelEl = ref<HTMLDivElement | null>(null)
+const tabEl = ref<HTMLButtonElement | null>(null)
+const still = () => !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+
 function setHidden(on: boolean) {
   hiddenMap.value = { ...hiddenMap.value, [props.id]: on }
   writeHidden(props.id, on)
 }
 onMounted(() => {
   if (!(props.id in hiddenMap.value)) hiddenMap.value = { ...hiddenMap.value, [props.id]: readHidden(props.id) }
+  tabShown.value = hidden.value
 })
+
+/** Ease the box's height from what it is now to `to()`, measured after `change`. */
+function resize(change: () => void, to: () => number) {
+  const el = box.value
+  if (!el || still()) { change(); el && (el.style.height = ''); return }
+  el.style.height = `${el.offsetHeight}px`
+  change()
+  nextTick(() => {
+    void el.offsetHeight
+    el.style.transition = 'height 0.22s ease'
+    el.style.height = `${to()}px`
+    const done = (e?: TransitionEvent) => {
+      if (e && (e.target !== el || e.propertyName !== 'height')) return
+      el.style.height = ''
+      el.style.transition = ''
+      el.removeEventListener('transitionend', done)
+    }
+    el.addEventListener('transitionend', done)
+    setTimeout(done, 400)
+  })
+}
+// The panel keeps its space while it slides out; then the space shrinks to the tab.
+function beforeLeave() {
+  if (box.value) box.value.style.height = `${box.value.offsetHeight}px`
+}
+function afterLeave() {
+  resize(() => { tabShown.value = true }, () => tabEl.value?.offsetHeight ?? 40)
+}
+function show() {
+  resize(() => {
+    tabShown.value = false
+    setHidden(false)
+  }, () => panelEl.value?.offsetHeight ?? 0)
+}
+// Hidden from elsewhere (Ctrl/Cmd+K brings the search back): no tab left behind.
+watch(hidden, (h) => { if (!h && tabShown.value) show() })
 const arrow = computed(() => (props.edge === 'right') !== hidden.value ? 'M9 6l6 6-6 6' : 'M15 6l-6 6 6 6')
 </script>
 
 <template>
-  <div v-if="!mobile" class="ww-d" :class="`ww-d--${edge}`">
-    <Transition name="ww-slide">
-      <div v-show="!hidden" class="ww" :class="{ panel: framed, 'ww--framed': framed }">
+  <div v-if="!mobile" ref="box" class="ww-d" :class="`ww-d--${edge}`">
+    <Transition name="ww-slide" @before-leave="beforeLeave" @after-leave="afterLeave">
+      <div v-show="!hidden" ref="panelEl" class="ww" :class="{ panel: framed, 'ww--framed': framed }">
         <slot />
         <button type="button" class="ww__hide" :aria-label="`Hide ${label}`" :title="`Hide ${label}`" @click="setHidden(true)">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="arrow" /></svg>
@@ -47,7 +94,7 @@ const arrow = computed(() => (props.edge === 'right') !== hidden.value ? 'M9 6l6
       </div>
     </Transition>
     <Transition name="ww-tab">
-      <button v-show="hidden" type="button" class="ww__tab panel" :aria-label="`Show ${label}`" :title="label" @click="setHidden(false)">
+      <button v-show="tabShown" ref="tabEl" type="button" class="ww__tab panel" :aria-label="`Show ${label}`" :title="label" @click="show">
         <WidgetIcon :icon="icon" :size="18" />
       </button>
     </Transition>
@@ -124,13 +171,12 @@ const arrow = computed(() => (props.edge === 'right') !== hidden.value ? 'M9 6l6
 .ww-d--left .ww__tab { margin-left: calc(-1 * var(--edge, 16px)); border-left: 0; border-radius: 0 12px 12px 0; }
 /* Sliding: the widget leaves past the edge, then its tab comes out of it. */
 .ww-slide-enter-active, .ww-slide-leave-active { transition: transform 0.25s ease, opacity 0.25s ease; }
+/* The box keeps its height while the panel slides; nothing spills out of it sideways. */
+.ww-d { flex-shrink: 0; }
 .ww-d--right .ww-slide-enter-from, .ww-d--right .ww-slide-leave-to { transform: translateX(calc(100% + var(--edge, 16px))); opacity: 0; }
 .ww-d--left .ww-slide-enter-from, .ww-d--left .ww-slide-leave-to { transform: translateX(calc(-100% - var(--edge, 16px))); opacity: 0; }
-/* The panel leaves first; the tab waits for it to be gone. */
-.ww-slide-leave-active { position: absolute; top: 0; }
-.ww-d--right .ww-slide-leave-active { right: 0; }
-.ww-d--left .ww-slide-leave-active { left: 0; }
-.ww-tab-enter-active { transition: transform 0.2s ease 0.15s; }
+/* The tab slides out of the edge once the panel is gone. */
+.ww-tab-enter-active { transition: transform 0.2s ease; }
 .ww-d--right .ww-tab-enter-from { transform: translateX(100%); }
 .ww-d--left .ww-tab-enter-from { transform: translateX(-100%); }
 @media (prefers-reduced-motion: reduce) {
