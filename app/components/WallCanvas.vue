@@ -687,8 +687,10 @@ function draw() {
   if (props.suggest.length) {
     ctx.save()
     ctx.strokeStyle = SUGGEST_COLOR
-    ctx.fillStyle = 'rgba(139, 219, 150, 0.14)'
-    ctx.lineWidth = 1.5
+    ctx.fillStyle = 'rgba(139, 219, 150, 0.28)'
+    ctx.shadowColor = SUGGEST_COLOR
+    ctx.shadowBlur = 6
+    ctx.lineWidth = 2
     ctx.setLineDash([4, 3])
     for (const c of props.suggest) {
       const px = sx(c.x), py = sy(c.y)
