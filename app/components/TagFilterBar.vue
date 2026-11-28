@@ -16,6 +16,10 @@ const toggle = (id: TagId) => emit('pick', props.active === id ? null : id)
 
 <template>
   <nav class="bar" aria-label="Filter the wall by tag">
+    <!-- First, so it never scrolls out of sight on a narrow screen. -->
+    <button v-if="active" type="button" class="chip chip--clear" aria-label="Clear the filter" @click="emit('pick', null)">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+    </button>
     <button
       v-for="id in FILTER_TAGS"
       :key="id"
@@ -30,9 +34,6 @@ const toggle = (id: TagId) => emit('pick', props.active === id ? null : id)
       <span class="chip__icon" aria-hidden="true">{{ TAG_STYLE[id].icon }}</span>
       {{ TAG_STYLE[id].plural }}
       <span class="chip__n">{{ fmt(counts[id] ?? 0) }}</span>
-    </button>
-    <button v-if="active" type="button" class="chip chip--clear" aria-label="Clear the filter" @click="emit('pick', null)">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
     </button>
   </nav>
 </template>
