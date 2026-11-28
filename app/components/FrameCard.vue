@@ -17,7 +17,7 @@ const config = useRuntimeConfig()
 const { frames } = useWall()
 const { milestones } = usePricing()
 
-// What makes this card special. The heart outranks the Founder's gold rim,
+// What makes this card special. The heart outranks the Founder's red rim,
 // which outranks the zone colour.
 const heart = computed(() => isHeart(props.frame.x, props.frame.y, props.frame.size))
 const founder = computed(() => !heart.value && isFounder(props.frame.number))
@@ -192,36 +192,53 @@ const nearby = () => navigateTo({ path: '/immortalize', query: { near: `${props.
 .card__meta { font-size: 12px; color: var(--muted); }
 .card__note { margin: 0; font-size: 15px; line-height: 1.5; color: var(--ink-2); overflow-wrap: anywhere; }
 
-/* 1. Founder: a gold rim that runs round the card, a star on the photo. */
-.card--founder { border-color: transparent; }
+/* 1. Founder: the Founder tag's look on the whole card (its red, softly
+   filled), with a sheen that runs slowly round the rim. */
+.card--founder {
+  --founder: #FF3B52;
+  border-color: transparent;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--founder) 14%, transparent), transparent 140px),
+    var(--panel);
+  box-shadow: var(--shadow), 0 0 calc(16px + 24px * var(--glow-k, 0)) color-mix(in srgb, var(--founder) var(--glow), transparent);
+}
 .card--founder::before {
   content: '';
   position: absolute;
   inset: -1.5px;
   padding: 1.5px;
   border-radius: inherit;
-  background: conic-gradient(from var(--spin), #8A5A12, var(--gold), #FFF4D2, var(--gold), #8A5A12, var(--gold), #FFF4D2, var(--gold), #8A5A12);
+  background: conic-gradient(
+    from var(--spin),
+    color-mix(in srgb, var(--founder) 35%, transparent) 0deg,
+    color-mix(in srgb, var(--founder) 35%, transparent) 250deg,
+    var(--founder) 300deg,
+    #FFB3BD 320deg,
+    var(--founder) 340deg,
+    color-mix(in srgb, var(--founder) 35%, transparent) 360deg
+  );
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
-  animation: rm-spin 6s linear infinite;
+  animation: rm-spin 5s linear infinite;
   pointer-events: none;
 }
-.card--founder .card__avatar { outline-color: var(--gold); }
+.card--founder .card__avatar { outline-color: color-mix(in srgb, var(--founder) 70%, transparent); }
+/* The star, as on the tag: red on a soft red pill. */
 .card__star {
   position: absolute;
-  right: -8px;
-  bottom: -8px;
-  width: 26px;
-  height: 26px;
+  right: -6px;
+  bottom: -6px;
+  width: 22px;
+  height: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
+  border: 1px solid color-mix(in srgb, #FF3B52 35%, transparent);
   border-radius: 50%;
-  background: linear-gradient(135deg, #FFF4D2, var(--gold) 45%, #C98A1E);
-  color: #4A2E00;
-  font-size: 14px;
-  box-shadow: 0 0 0 2px var(--paper), 0 0 12px rgba(255, 210, 122, 0.6);
+  background: color-mix(in srgb, #FF3B52 22%, var(--paper));
+  color: #FF3B52;
+  font-size: 11px;
 }
 
 /* 2. Lucky numbers: the number, big and shining. */
