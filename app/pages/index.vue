@@ -253,7 +253,7 @@ async function onReport(frame: WallFrame) {
         <HeartCard @close="heartOpen = false" />
       </div>
       <div v-else-if="selected" class="selected">
-        <FrameCard :frame="selected" @close="onSelect(null)" @report="onReport" @filter="applyFilter" />
+        <FrameCard :frame="selected" :mine="mine.includes(selected.id)" @close="onSelect(null)" @report="onReport" @filter="applyFilter" />
         <p v-if="reported" class="selected__toast" role="status">{{ reported }}</p>
         <p v-else-if="notice" class="selected__toast selected__toast--mine" role="status">{{ notice }}</p>
       </div>

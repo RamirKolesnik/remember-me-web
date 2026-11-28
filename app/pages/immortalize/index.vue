@@ -4,6 +4,9 @@ import { tierOf } from '~/shared/tiers'
 import { nextStepText } from '~/shared/news'
 import { squarePhoto } from '~/composables/useDraft'
 import { ApiError } from '~/composables/useApi'
+import { parseCell } from '~/shared/nearby'
+
+const route = useRoute()
 
 useHead({ title: 'Immortalize yourself — The Living Wall' })
 
@@ -70,7 +73,9 @@ function next() {
   touched.name = true
   touched.note = true
   if (!ready.value) return
-  navigateTo('/immortalize/spot')
+  // "Claim a spot nearby" from a frame card: the spot step opens next to it.
+  const near = parseCell(route.query.near)
+  navigateTo({ path: '/immortalize/spot', query: near ? { near: `${near.x},${near.y}` } : {} })
 }
 
 const initials = computed(() => draft.value.name.trim().split(/\s+/).map((w) => w[0] ?? '').join('').slice(0, 2).toUpperCase() || '?')
