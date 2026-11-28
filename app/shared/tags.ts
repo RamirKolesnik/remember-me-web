@@ -1,7 +1,16 @@
 // How tags look on the site and what the wall's filter shows. The rules of
 // which frame gets which tag are in wall.ts (tagsOf), shared with the API.
 // Keep the colours in step with TAG_COLOR in the API's story.ts.
-import { tagsOf, type Milestones, type TagId } from './wall.ts'
+import { isHeart, tagsOf, zoneOfFrame, type Milestones, type TagId } from './wall.ts'
+import { tierOf } from './tiers.ts'
+
+/** The heart's own red (--heart). */
+export const HEART_COLOR = '#FF3B52'
+
+/** The colour a frame wears when selected: its zone's, or the heart's red. */
+export function frameAccent(f: { x: number; y: number; size: number }): string {
+  return isHeart(f.x, f.y, f.size) ? HEART_COLOR : tierOf(zoneOfFrame(f.x, f.y, f.size).id).accent
+}
 
 export const TAG_STYLE: Record<TagId, { color: string; icon: string; plural: string }> = {
   'founder': { color: '#FF3B52', icon: '★', plural: 'Founders' },

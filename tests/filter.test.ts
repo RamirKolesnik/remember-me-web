@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { FILTER_TAGS, hasTag, isFilterTag, tagCounts, TAG_STYLE } from '../app/shared/tags.ts'
+import { frameAccent, HEART_COLOR, FILTER_TAGS, hasTag, isFilterTag, tagCounts, TAG_STYLE } from '../app/shared/tags.ts'
 import { HEART, NO_MILESTONES } from '../app/shared/wall.ts'
 
 test('the filter bar has every tag but first wave', () => {
@@ -21,4 +21,10 @@ test('has tag and counts', () => {
   assert.equal(c['heart-neighbour'], 1)
   assert.equal(c['first-wave'], 2)
   assert.equal(c['last-spot'], 0)
+})
+
+test('a selected frame wears its zone colour', () => {
+  assert.equal(frameAccent({ x: 500, y: 460, size: 1 }), '#FF4D8D')
+  assert.equal(frameAccent({ x: 300, y: 300, size: 1 }), '#6F7CFF')
+  assert.equal(frameAccent({ x: HEART.x, y: HEART.y, size: HEART.size }), HEART_COLOR)
 })
