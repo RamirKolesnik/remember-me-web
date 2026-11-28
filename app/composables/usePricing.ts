@@ -1,4 +1,4 @@
-import { NOTHING_SOLD, pricing, zoneOfCell, type Pricing, type Sold, type ZoneId } from '~/shared/wall'
+import { milestonesOf, NOTHING_SOLD, pricing, zoneOfCell, type Milestones, type Pricing, type Sold, type ZoneId } from '~/shared/wall'
 import type { WallFrame } from '~/composables/useWall'
 
 const POLL_MS = 15_000
@@ -6,6 +6,7 @@ const POLL_MS = 15_000
 // One poller per browser tab, shared by every component that shows prices.
 const state = {
   sold: shallowRef<Sold | null>(null),
+  milestones: shallowRef<Milestones | null>(null),
   started: false,
   busy: false,
 }
@@ -33,11 +34,13 @@ export function usePricing() {
     if (!api.live || state.busy) return
     state.busy = true
     try {
-      const res = await api.get<{ sold: Record<string, number> }>('/wall/pricing')
+      const res = await api.get<{ sold: Record<string, number>; milestones?: Milestones }>('/wall/pricing')
       state.sold.value = {
         1: Number(res.sold['1'] ?? 0), 2: Number(res.sold['2'] ?? 0),
         3: Number(res.sold['3'] ?? 0), 4: Number(res.sold['4'] ?? 0),
       }
+      // An API from before the tags has no milestones: only the frame's own tags then.
+      if (res.milestones) state.milestones.value = res.milestones
     } catch {
       // Keep the last known prices; the next poll tries again.
     } finally {
@@ -59,5 +62,9 @@ export function usePricing() {
   /** Zone ids not on sale yet. */
   const closedZones = computed<ZoneId[]>(() => current.value?.zones.filter((z) => !z.open).map((z) => z.zone.id) ?? [])
 
-  return { pricing: current, closedZones, refresh }
+  /** First wave, first frame and last spot of each zone: for the tags (tagsOf). Null until known. */
+  const milestones = computed<Milestones | null>(() =>
+    api.live ? state.milestones.value : milestonesOf(frames.value))
+
+  return { pricing: current, closedZones, milestones, refresh }
 }

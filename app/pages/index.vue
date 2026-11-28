@@ -5,11 +5,17 @@ import type { ClosedZone, WallView } from '~/components/WallCanvas.vue'
 import { unlockText } from '~/shared/news'
 import { tierOf } from '~/shared/tiers'
 import { readMine } from '~/shared/mine'
+import { boundsOf, filterColor, filterLabel, matchesFilter, type WallFilter } from '~/shared/tags'
 
 const { frames, frameAt, status, load, byId, byNumber } = useWall()
 const api = useApi()
 const route = useRoute()
-const wall = ref<{ zoomBy: (f: number) => void; centerOn: (x: number, y: number, s?: number) => void; fitZone: (id: number) => void } | null>(null)
+const wall = ref<{
+  zoomBy: (f: number) => void
+  centerOn: (x: number, y: number, s?: number) => void
+  fitZone: (id: number) => void
+  fitBox: (x0: number, y0: number, x1: number, y1: number) => void
+} | null>(null)
 const selected = ref<WallFrame | null>(null)
 const view = ref<WallView | null>(null)
 const reported = ref<string | null>(null)
@@ -44,7 +50,30 @@ function fitZone(id: number) {
 }
 const heartActive = computed(() => heartOpen.value || (!!selected.value && selected.value.x === HEART.x && selected.value.y === HEART.y))
 
-const { pricing } = usePricing()
+const { pricing, milestones } = usePricing()
+
+// The filter: a tap on a tag (Founder, a zone...) lights up every frame like it.
+const filter = ref<WallFilter | null>(null)
+const filtered = computed(() => {
+  const fl = filter.value
+  return fl ? frames.value.filter((f) => matchesFilter(f, fl, milestones.value)) : []
+})
+const spotlight = computed(() => filter.value
+  ? { ids: new Set(filtered.value.map((f) => f.id)), color: filterColor(filter.value) }
+  : null)
+function applyFilter(fl: WallFilter) {
+  filter.value = fl
+  onSelect(null)
+  if (fl.kind === 'zone') {
+    wall.value?.fitZone(fl.id)
+    return
+  }
+  const b = boundsOf(filtered.value)
+  if (b) wall.value?.fitBox(b.x0, b.y0, b.x1, b.y1)
+}
+function onKey(e: KeyboardEvent) {
+  if (e.key === 'Escape' && filter.value && !selected.value) filter.value = null
+}
 const closed = computed<ClosedZone[]>(() => {
   const p = pricing.value
   // Until prices arrive, the rings of later waves are shown closed, so the
@@ -74,6 +103,7 @@ onMounted(() => {
   mine.value = readMine()
   // A frame bought in another tab of this browser becomes "You" here too.
   window.addEventListener('storage', onStorage)
+  window.addEventListener('keydown', onKey)
   load()
 })
 
@@ -104,7 +134,10 @@ async function goToNumber(n: number): Promise<boolean> {
 function onStorage(e: StorageEvent) {
   if (e.key === 'rm.mine') mine.value = [...new Set([...mine.value, ...readMine()])]
 }
-onBeforeUnmount(() => window.removeEventListener('storage', onStorage))
+onBeforeUnmount(() => {
+  window.removeEventListener('storage', onStorage)
+  window.removeEventListener('keydown', onKey)
+})
 
 function celebrateFrame(f: WallFrame) {
   celebrate.value = f.id
@@ -164,7 +197,8 @@ async function onReport(frame: WallFrame) {
           :mine="mine"
           :celebrate="celebrate"
           :heart-active="heartActive"
-          :highlight-zone="highlightZone"
+          :highlight-zone="highlightZone ?? (filter?.kind === 'zone' ? filter.id : null)"
+          :spotlight="spotlight"
           @select="onSelect"
           @heart="onSelect(null); heartOpen = true; openWidget = null"
           @view="view = $event"
@@ -172,6 +206,14 @@ async function onReport(frame: WallFrame) {
       </ClientOnly>
 
       <WallStatus />
+
+      <div v-if="filter" class="filter" role="status" :style="{ '--tag': filterColor(filter) }">
+        <i aria-hidden="true" />
+        <span><b>{{ filterLabel(filter) }}</b> · {{ filtered.length.toLocaleString('en-US') }} on the wall</span>
+        <button type="button" class="filter__clear" aria-label="Show all frames" @click="filter = null">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+        </button>
+      </div>
 
       <WallWidget id="search" class="w-search" label="Find a frame" icon="search" :sheet="false">
         <WallSearch :preview="byNumber" :find="goToNumber" />
@@ -220,7 +262,7 @@ async function onReport(frame: WallFrame) {
         <HeartCard @close="heartOpen = false" />
       </div>
       <div v-else-if="selected" class="selected">
-        <FrameCard :frame="selected" @close="onSelect(null)" @report="onReport" />
+        <FrameCard :frame="selected" @close="onSelect(null)" @report="onReport" @filter="applyFilter" />
         <p v-if="reported" class="selected__toast" role="status">{{ reported }}</p>
         <p v-else-if="notice" class="selected__toast selected__toast--mine" role="status">{{ notice }}</p>
       </div>
@@ -241,6 +283,42 @@ async function onReport(frame: WallFrame) {
   gap: 8px;
 }
 .w-search { position: absolute; top: 12px; left: 16px; z-index: 3; }
+/* The filter chip: top center under the status pill, in the colour of the tag. */
+.filter {
+  position: absolute;
+  top: 52px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 4px 4px 12px;
+  border: 1px solid color-mix(in srgb, var(--tag) 45%, transparent);
+  border-radius: 999px;
+  background: var(--panel);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.filter i { width: 8px; height: 8px; border-radius: 50%; background: var(--tag); box-shadow: 0 0 8px var(--tag); }
+.filter b { color: var(--tag); font-weight: 600; }
+.filter__clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.filter__clear:hover { color: var(--ink); background: var(--line); }
 /* The zones switch: a small track that fills with the zone colours when on. */
 .zones { gap: 8px; }
 .zones__track {
@@ -312,6 +390,8 @@ async function onReport(frame: WallFrame) {
 .selected__toast--mine { background: #FFD27A; color: #3A2606; }
 @media (max-width: 720px) {
   .w-search { left: 12px; }
+  /* Right of the search icon, clear of the corner widgets. */
+  .filter { top: 12px; left: 64px; right: 12px; transform: none; justify-content: space-between; }
   /* The status pills move below the search icon. */
   .stage :deep(.status) { top: 68px; }
   /* Feed, stats and map fold into icons in the bottom-right corner. */

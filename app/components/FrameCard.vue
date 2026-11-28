@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { isFounder } from '~/shared/wall'
 import type { WallFrame } from '~/composables/useWall'
+import type { WallFilter } from '~/shared/tags'
 
 const props = defineProps<{ frame: WallFrame }>()
-const emit = defineEmits<{ close: []; report: [frame: WallFrame] }>()
+const emit = defineEmits<{ close: []; report: [frame: WallFrame]; filter: [filter: WallFilter] }>()
 const number = computed(() => props.frame.number ? `Heartbeat #${props.frame.number.toLocaleString('en-US')} · ` : '')
 </script>
 
@@ -18,14 +18,11 @@ const number = computed(() => props.frame.number ? `Heartbeat #${props.frame.num
         <template v-else>{{ frame.initials }}</template>
       </div>
       <div class="card__who">
-        <span class="card__name">
-          {{ frame.name }}
-          <span v-if="isFounder(frame.number)" class="card__founder" title="One of the first 1,000 frames on the wall">★ Founder</span>
-          <ZoneTag :x="frame.x" :y="frame.y" :size="frame.size" />
-        </span>
+        <span class="card__name">{{ frame.name }}</span>
         <span class="card__meta">{{ number }}{{ frame.placedAt }}</span>
       </div>
     </div>
+    <FrameTags :frame="frame" clickable @filter="emit('filter', $event)" />
     <p class="card__note">{{ frame.note }}</p>
     <div class="card__foot">
       <span>Cell ({{ frame.x }}, {{ frame.y }})</span>
@@ -71,15 +68,6 @@ const number = computed(() => props.frame.number ? `Heartbeat #${props.frame.num
 .card__avatar img { width: 100%; height: 100%; object-fit: cover; }
 .card__who { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .card__name { font-size: 17px; font-weight: 600; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.card__founder {
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--heart-soft);
-  color: var(--heart);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
 .card__meta { font-size: 12px; color: var(--muted); }
 .card__note { margin: 0; font-size: 15px; line-height: 1.5; color: var(--ink-2); overflow-wrap: anywhere; }
 .card__foot {

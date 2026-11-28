@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { fromApi, type ApiFrame, type WallFrame } from '~/composables/useWall'
 import { newcomers, newestNumber, timeAgo } from '~/shared/recent'
-import { isHeart, zoneOfFrame } from '~/shared/wall'
-import { tierOf } from '~/shared/tiers'
 
 // embedded: inside a phone sheet, which does the folding; no header of its own.
 const props = withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false })
@@ -29,12 +27,6 @@ let busy = false
 let mobile = false
 
 const fmt = (n: number) => n.toLocaleString('en-US')
-
-function metaOf(f: WallFrame) {
-  if (isHeart(f.x, f.y, f.size)) return { text: 'The heart', color: 'var(--heart)' }
-  const z = zoneOfFrame(f.x, f.y, f.size)
-  return { text: `in the ${tierOf(z.id).name}`, color: tierOf(z.id).accent }
-}
 
 /** Takes a fresh list of the newest frames: marks newcomers, puts them on the wall. */
 function take(list: WallFrame[]) {
@@ -172,8 +164,8 @@ const stack = computed(() => items.value.slice(0, 3))
             <span class="feed__who">
               <span class="feed__name">{{ f.name }}</span>
               <span class="feed__meta">
-                <i :style="{ background: metaOf(f).color }" />
-                <template v-if="f.number">#{{ fmt(f.number) }} · </template>{{ metaOf(f).text }}
+                <template v-if="f.number">#{{ fmt(f.number) }}</template>
+                <FrameTags :frame="f" compact />
               </span>
             </span>
             <time
@@ -293,8 +285,7 @@ const stack = computed(() => items.value.slice(0, 3))
 .feed__avatar img { width: 100%; height: 100%; object-fit: cover; }
 .feed__who { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .feed__name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.feed__meta { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); white-space: nowrap; }
-.feed__meta i { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+.feed__meta { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); white-space: nowrap; min-width: 0; overflow: hidden; }
 .feed__time { align-self: flex-start; padding-top: 2px; font-size: 11px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 .feed-enter-active { transition: opacity 0.4s, transform 0.4s; }
