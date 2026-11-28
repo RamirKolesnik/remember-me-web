@@ -28,11 +28,11 @@ const barOf = (count: number) => {
 // Search: type a country, pick it, see where it stands even outside the top.
 // Until something is picked, the visitor's own country is shown.
 const query = ref('')
-const active = ref(0)
+const cursor = ref(0)
 const picked = ref<string | null>(null)
 const input = ref<HTMLInputElement | null>(null)
 const hits = computed(() => searchCountries(query.value, 5))
-watch(query, () => { active.value = 0 })
+watch(query, () => { cursor.value = 0 })
 const placeOf = (code: string) => (stats.value ? countryPlace(stats.value, code) : null)
 const shown = computed(() => picked.value ?? mine.value)
 const place = computed(() => (shown.value ? placeOf(shown.value) : null))
@@ -57,9 +57,9 @@ function clearPick() {
 }
 function onKey(e: KeyboardEvent) {
   const n = hits.value.length
-  if (e.key === 'ArrowDown' && n) { e.preventDefault(); active.value = (active.value + 1) % n }
-  else if (e.key === 'ArrowUp' && n) { e.preventDefault(); active.value = (active.value - 1 + n) % n }
-  else if (e.key === 'Enter' && n) { e.preventDefault(); pick(hits.value[active.value]!) }
+  if (e.key === 'ArrowDown' && n) { e.preventDefault(); cursor.value = (cursor.value + 1) % n }
+  else if (e.key === 'ArrowUp' && n) { e.preventDefault(); cursor.value = (cursor.value - 1 + n) % n }
+  else if (e.key === 'Enter' && n) { e.preventDefault(); pick(hits.value[cursor.value]!) }
   else if (e.key === 'Escape') { e.stopPropagation(); if (query.value) query.value = ''; else input.value?.blur() }
 }
 const hitText = (code: string) => {
@@ -121,7 +121,7 @@ const open = computed(() => props.embedded || !collapsed.value)
             aria-label="Find a country"
             aria-autocomplete="list"
             aria-controls="countries-hits"
-            :aria-activedescendant="query && hits.length ? `cty-hit-${hits[active]}` : undefined"
+            :aria-activedescendant="query && hits.length ? `cty-hit-${hits[cursor]}` : undefined"
             autocomplete="off"
             spellcheck="false"
             @keydown="onKey"
@@ -138,11 +138,11 @@ const open = computed(() => props.embedded || !collapsed.value)
               :id="`cty-hit-${code}`"
               :key="code"
               role="option"
-              :aria-selected="i === active"
+              :aria-selected="i === cursor"
               class="cty__hit"
-              :class="{ 'cty__hit--active': i === active }"
+              :class="{ 'cty__hit--active': i === cursor }"
               @mousedown.prevent="pick(code)"
-              @mouseenter="active = i"
+              @mouseenter="cursor = i"
             >
               <span class="fi cty__flag" :class="`fi-${code.toLowerCase()}`" aria-hidden="true" />
               <span class="cty__name">{{ placeOf(code)?.name }}</span>
