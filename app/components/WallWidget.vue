@@ -45,16 +45,24 @@ onMounted(() => {
   tabShown.value = hidden.value
 })
 
-/** Ease the box's height from what it is now to `to()`, measured after `change`. */
-function resize(change: () => void, to: () => number) {
+/**
+ * Ease the box's height from what it is now to its natural height after
+ * `change`. The target is measured with the box let free for a moment (a
+ * frozen box would squeeze the panel and give a wrong, too small height).
+ */
+function resize(change: () => void) {
   const el = box.value
   if (!el || still()) { change(); el && (el.style.height = ''); return }
-  el.style.height = `${el.offsetHeight}px`
+  const from = el.offsetHeight
+  el.style.height = `${from}px`
   change()
   nextTick(() => {
+    el.style.height = ''
+    const to = el.offsetHeight
+    el.style.height = `${from}px`
     void el.offsetHeight
     el.style.transition = 'height 0.22s ease'
-    el.style.height = `${to()}px`
+    el.style.height = `${to}px`
     const done = (e?: TransitionEvent) => {
       if (e && (e.target !== el || e.propertyName !== 'height')) return
       el.style.height = ''
@@ -70,13 +78,13 @@ function beforeLeave() {
   if (box.value) box.value.style.height = `${box.value.offsetHeight}px`
 }
 function afterLeave() {
-  resize(() => { tabShown.value = true }, () => tabEl.value?.offsetHeight ?? 40)
+  resize(() => { tabShown.value = true })
 }
 function show() {
   resize(() => {
     tabShown.value = false
     setHidden(false)
-  }, () => panelEl.value?.offsetHeight ?? 0)
+  })
 }
 // Hidden from elsewhere (Ctrl/Cmd+K brings the search back): no tab left behind.
 watch(hidden, (h) => { if (!h && tabShown.value) show() })
